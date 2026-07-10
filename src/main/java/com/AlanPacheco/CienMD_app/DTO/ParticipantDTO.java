@@ -5,8 +5,9 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class AnswerDTO {
+public class ParticipantDTO {
     private Long id;
-    private String text;
+    private String name;
+    private int team;
     private int score;
 }

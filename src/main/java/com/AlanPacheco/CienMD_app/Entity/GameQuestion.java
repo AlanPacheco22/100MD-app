@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
+@Table(name = "game_questions")
 @Getter
 @Setter
 public class GameQuestion {
@@ -13,11 +14,14 @@ public class GameQuestion {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "game_id", nullable = false)
     private Game game;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "question_id", nullable = false)
     private Question question;
+
+    @Column(name = "question_order", nullable = false)
+    private int questionOrder;
 }

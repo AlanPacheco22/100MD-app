@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
+@Table(name = "answers")
 @Getter
 @Setter
 public class Answer {
@@ -13,7 +14,7 @@ public class Answer {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "question_id", nullable = false)
     private Question question;
 

@@ -1,4 +1,7 @@
 package com.AlanPacheco.CienMD_app.Enum;
 
-public class GameStatus {
+public enum GameStatus {
+    NOT_STARTED,
+    IN_PROGRESS,
+    FINISHED
 }

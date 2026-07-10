@@ -7,6 +7,7 @@ import lombok.Setter;
 import java.util.List;
 
 @Entity
+@Table(name = "questions")
 @Getter
 @Setter
 public class Question {
@@ -18,6 +19,6 @@ public class Question {
     @Column(nullable = false)
     private String text;
 
-    @OneToMany(mappedBy = "question", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "question", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private List<Answer> answers;
 }

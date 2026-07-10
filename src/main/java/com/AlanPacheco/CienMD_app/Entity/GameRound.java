@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
+@Table(name = "game_rounds")
 @Getter
 @Setter
 public class GameRound {
@@ -13,15 +14,15 @@ public class GameRound {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "game_id", nullable = false)
     private Game game;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "participant_id", nullable = false)
     private Participant participant;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "game_question_id", nullable = false)
     private GameQuestion gameQuestion;
 
@@ -33,4 +34,7 @@ public class GameRound {
 
     @Column(nullable = false)
     private int multiplier;
+
+    @Column(name = "is_correct", nullable = false)
+    private boolean isCorrect;
 }

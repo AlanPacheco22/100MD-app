@@ -1,39 +1,81 @@
 package com.AlanPacheco.CienMD_app.Controller;
 
+import com.AlanPacheco.CienMD_app.DTO.CreateParticipantDTO;
+import com.AlanPacheco.CienMD_app.DTO.GameDTO;
+import com.AlanPacheco.CienMD_app.DTO.GameQuestionDTO;
+import com.AlanPacheco.CienMD_app.DTO.GameResultsDTO;
+import com.AlanPacheco.CienMD_app.DTO.ParticipantDTO;
+import com.AlanPacheco.CienMD_app.DTO.RoundDTO;
+import com.AlanPacheco.CienMD_app.Service.GameService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import com.AlanPacheco.CienMD_app.Entity.Game;
-import com.AlanPacheco.CienMD_app.Repository.GameRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
-
-import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/games")
 public class GameController {
 
-    @Autowired
-    private GameRepository gameRepository;
+    private final GameService gameService;
 
-    // Crear un nuevo juego
+    public GameController(GameService gameService) {
+        this.gameService = gameService;
+    }
+
     @PostMapping
-    public Game createGame() {
-        Game game = new Game();
-        game.setDate(LocalDateTime.now());
-        return gameRepository.save(game);
+    public ResponseEntity<GameDTO> createGame() {
+        return ResponseEntity.status(HttpStatus.CREATED).body(gameService.createNewGame());
     }
 
-    // Obtener todos los juegos
     @GetMapping
-    public List<Game> getAllGames() {
-        return gameRepository.findAll();
+    public ResponseEntity<List<GameDTO>> getAllGames() {
+        return ResponseEntity.ok(gameService.getAllGames());
     }
 
-    // Obtener un juego por ID
     @GetMapping("/{id}")
-    public Game getGameById(@PathVariable Long id) {
-        return gameRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Juego no encontrado con ID: " + id));
+    public ResponseEntity<GameDTO> getGameById(@PathVariable Long id) {
+        return ResponseEntity.ok(gameService.getGameById(id));
+    }
+
+    @GetMapping("/{gameId}/results")
+    public ResponseEntity<GameResultsDTO> getResults(@PathVariable Long gameId) {
+        return ResponseEntity.ok(gameService.getFinalResults(gameId));
+    }
+
+    @PostMapping("/{gameId}/rounds/start")
+    public ResponseEntity<GameDTO> startRound(@PathVariable Long gameId) {
+        return ResponseEntity.ok(gameService.startNextRound(gameId));
+    }
+
+    @PostMapping("/{gameId}/rounds/answer")
+    public ResponseEntity<GameQuestionDTO> submitAnswer(
+            @PathVariable Long gameId,
+            @RequestBody @Valid RoundDTO roundDTO) {
+        return ResponseEntity.ok(gameService.submitAnswer(gameId, roundDTO));
+    }
+
+    @PostMapping("/{gameId}/rounds/end")
+    public ResponseEntity<GameDTO> endRound(@PathVariable Long gameId) {
+        return ResponseEntity.ok(gameService.endRound(gameId));
+    }
+
+    @PostMapping("/{gameId}/participants")
+    public ResponseEntity<ParticipantDTO> addParticipant(
+            @PathVariable Long gameId,
+            @RequestBody @Valid CreateParticipantDTO dto) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(gameService.addParticipant(gameId, dto));
+    }
+
+    @GetMapping("/{gameId}/participants")
+    public ResponseEntity<List<ParticipantDTO>> getParticipants(@PathVariable Long gameId) {
+        return ResponseEntity.ok(gameService.getParticipants(gameId));
     }
 }

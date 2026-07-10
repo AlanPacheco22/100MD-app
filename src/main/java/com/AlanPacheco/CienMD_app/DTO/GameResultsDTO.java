@@ -3,14 +3,15 @@ package com.AlanPacheco.CienMD_app.DTO;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
+
 @Getter
 @Setter
-public class GameDTO {
-    private Long id;
+public class GameResultsDTO {
+    private Long gameId;
     private String status;
     private int team1Score;
     private int team2Score;
-    private int team1Errors;
-    private int team2Errors;
-    private Long currentQuestionId; // ID de la pregunta actual
+    private List<ParticipantDTO> participants;
+    private String winner;
 }

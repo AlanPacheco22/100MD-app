@@ -1,11 +1,19 @@
 package com.AlanPacheco.CienMD_app.Entity;
 
+import com.AlanPacheco.CienMD_app.Enum.GameRoundStatus;
+import com.AlanPacheco.CienMD_app.Enum.GameStatus;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
+@Table(name = "games")
+@Getter
+@Setter
 public class Game {
 
     @Id
@@ -15,48 +23,31 @@ public class Game {
     @Column(nullable = false)
     private LocalDateTime date;
 
-    @OneToMany(mappedBy = "game", cascade = CascadeType.ALL)
-    private List<Participant> participants;
+    @OneToMany(mappedBy = "game", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private List<Participant> participants = new ArrayList<>();
 
-    @OneToMany(mappedBy = "game", cascade = CascadeType.ALL)
-    private List<GameQuestion> gameQuestions;
+    @OneToMany(mappedBy = "game", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private List<GameQuestion> gameQuestions = new ArrayList<>();
 
-    // Constructor sin parámetros (requerido para JPA)
-    public Game() {}
+    @Enumerated(EnumType.STRING)
+    private GameStatus status;
 
-    // Getter para 'date'
-    public LocalDateTime getDate() {
-        return date;
-    }
+    @Enumerated(EnumType.STRING)
+    private GameRoundStatus currentRoundStatus;
 
-    // Setter para 'date'
-    public void setDate(LocalDateTime date) {
-        this.date = date;
-    }
+    @Column(nullable = false)
+    private int team1Score;
 
-    // Otros getters y setters para otros campos si los necesitas
-    public Long getId() {
-        return id;
-    }
+    @Column(nullable = false)
+    private int team2Score;
 
-    public void setId(Long id) {
-        this.id = id;
-    }
+    @Column(nullable = false)
+    private int team1Errors;
 
-    public List<Participant> getParticipants() {
-        return participants;
-    }
+    @Column(nullable = false)
+    private int team2Errors;
 
-    public void setParticipants(List<Participant> participants) {
-        this.participants = participants;
-    }
-
-    public List<GameQuestion> getGameQuestions() {
-        return gameQuestions;
-    }
-
-    public void setGameQuestions(List<GameQuestion> gameQuestions) {
-        this.gameQuestions = gameQuestions;
-    }
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "current_game_question_id")
+    private GameQuestion currentGameQuestion;
 }
-
