@@ -9,13 +9,13 @@
     <link th:href="@{/css/style.css}" rel="stylesheet">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg" style="background: linear-gradient(90deg, #006847 0%, #FFFFFF 50%, #CE1126 100%);">
+    <nav class="navbar navbar-expand-lg">
         <div class="container">
-            <a class="navbar-brand fw-bold text-dark" href="#">100 Mexicanos Dijeron — Admin</a>
-            <div class="d-flex align-items-center">
-                <span class="navbar-text me-3 text-dark fw-semibold" sec:authentication="name"></span>
-                <a th:href="@{/dashboard}" class="btn btn-outline-dark btn-sm me-2">Dashboard</a>
-                <a th:href="@{/logout}" class="btn btn-outline-dark btn-sm">Salir</a>
+            <a class="navbar-brand" href="/dashboard">100 MEXICANOS DIJERON — ADMIN</a>
+            <div class="d-flex align-items-center gap-3">
+                <span class="navbar-text text-secondary fw-semibold" sec:authentication="name"></span>
+                <a th:href="@{/dashboard}" class="btn btn-outline-secondary btn-sm me-1">Dashboard</a>
+                <a th:href="@{/logout}" class="btn btn-outline-secondary btn-sm">Salir</a>
             </div>
         </div>
     </nav>
