@@ -1,11 +1,17 @@
 package com.AlanPacheco.CienMD_app.Controller;
 
-
-import com.AlanPacheco.CienMD_app.Entity.Participant;
-import com.AlanPacheco.CienMD_app.Repository.GameRepository;
-import com.AlanPacheco.CienMD_app.Repository.ParticipantRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
+import com.AlanPacheco.CienMD_app.DTO.CreateParticipantDTO;
+import com.AlanPacheco.CienMD_app.DTO.ParticipantDTO;
+import com.AlanPacheco.CienMD_app.Service.GameService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
@@ -13,24 +19,22 @@ import java.util.List;
 @RequestMapping("/api/games/{gameId}/participants")
 public class ParticipantController {
 
-    @Autowired
-    private ParticipantRepository participantRepository;
+    private final GameService gameService;
 
-    @Autowired
-    private GameRepository gameRepository;
-
-    // Agregar un participante a un juego
-    @PostMapping
-    public Participant addParticipant(@PathVariable Long gameId, @RequestBody Participant participant) {
-        var game = gameRepository.findById(gameId)
-                .orElseThrow(() -> new RuntimeException("Juego no encontrado con ID: " + gameId));
-        participant.setGame(game);
-        return participantRepository.save(participant);
+    public ParticipantController(GameService gameService) {
+        this.gameService = gameService;
     }
 
-    // Obtener todos los participantes de un juego
+    @PostMapping
+    public ResponseEntity<ParticipantDTO> addParticipant(
+            @PathVariable Long gameId,
+            @RequestBody @Valid CreateParticipantDTO dto) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(gameService.addParticipant(gameId, dto));
+    }
+
     @GetMapping
-    public List<Participant> getParticipants(@PathVariable Long gameId) {
-        return (List<Participant>) participantRepository.findByGameId(gameId);
+    public ResponseEntity<List<ParticipantDTO>> getParticipants(@PathVariable Long gameId) {
+        return ResponseEntity.ok(gameService.getParticipants(gameId));
     }
 }
