@@ -30,7 +30,7 @@ El proyecto usa **Spring Data JPA** como capa de abstracción sobre la base de d
 
 Las migraciones Flyway están diseñadas en SQL estándar para que funcionen en cualquier base de datos soportada por Flyway.
 
-**Estado actual:** ~38% completado. El proyecto NO compila (10+ errores de compilación).
+**Estado actual:** ~55% completado. Fases 0-6 completadas. Compila y pruebas pasan. Restan Fases 7-10.
 
 ---
 
@@ -1510,6 +1510,646 @@ jobs:
 
 ---
 
+## Fase 7: Lógica de Juego Completa (Strikes, Steal, Pasar, Revelar)
+
+### Objetivo
+Refinar la lógica del juego para que coincida con las reglas reales de "100 Mexicanos Dijeron":
+- Revelar respuestas una por una cuando un jugador acierta
+- Contador de strikes (X) — equipo 1 tiene 3, equipo 2 tiene 1
+- Steal (rebote): si equipo 1 falla 3 veces, equipo 2 puede "robar" respondiendo UNA respuesta
+- Turno alternado: ronda impar empieza equipo 1, ronda par empieza equipo 2
+- Opción "Pasar": equipo 1 puede pasar voluntariamente el turno para que equipo 2 intente robar
+
+### Reglas exactas del juego
+1. **Inicio de ronda**: Se muestra una pregunta con N respuestas ocultas.
+2. **Turno del Equipo 1**: Los miembros del equipo 1 se turnan para dar respuestas.
+   - **Acierto**: La respuesta se revela con su puntaje. Se acumulan puntos.
+   - **Fallo (X)**: Se marca un strike. 3 strikes = pierde el turno.
+   - **Pasar**: El equipo puede optar por pasar voluntariamente.
+3. **Steal (Rebote)**: Cuando el equipo 1 falla 3 veces o pasa, el equipo 2 tiene UNA oportunidad.
+   - Si **aciertan**: Roban TODOS los puntos acumulados del equipo 1 en esa ronda.
+   - Si **fallan**: El equipo 1 conserva sus puntos.
+4. **Fin de ronda**: Se suman los puntos al marcador general. Siguiente ronda.
+5. **Alternancia**: Ronda 1 empieza equipo 1, ronda 2 empieza equipo 2, etc.
+
+### Archivos a modificar
+
+#### 1. `src/main/java/com/AlanPacheco/CienMD_app/Entity/Game.java`
+Agregar campo para puntos acumulados en la ronda actual:
+```java
+@Column(name = "current_round_points", nullable = false)
+private int currentRoundPoints = 0;
+
+@Column(name = "rounds_played", nullable = false)
+private int roundsPlayed = 0;
+```
+
+#### 2. `src/main/java/com/AlanPacheco/CienMD_app/Service/GameService.java`
+Reescribir métodos:
+
+**`submitAnswer()` — nuevo flujo:**
+```java
+@Transactional
+public GameQuestionDTO submitAnswer(Long gameId, RoundDTO roundDTO) {
+    Game game = getGameOrThrow(gameId);
+    validateGameNotFinished(game);
+
+    Participant participant = getParticipantOrThrow(roundDTO.getParticipantId());
+    GameQuestion gameQuestion = getGameQuestionOrThrow(roundDTO.getGameQuestionId());
+    Answer answer = answerRepository.findByQuestionIdAndTextIgnoreCase(
+            gameQuestion.getQuestion().getId(), roundDTO.getAnswerText());
+
+    int multiplier = Math.max(roundDTO.getRoundMultiplier(), 1);
+    GameRound round = createRound(game, participant, gameQuestion, roundDTO, multiplier, answer);
+    gameRoundRepository.save(round);
+
+    if (answer != null) {
+        handleCorrectAnswer(game, answer, multiplier, participant);
+    } else {
+        handleIncorrectAnswer(game, participant);
+    }
+
+    gameRepository.save(game);
+    eventPublisher.publishEvent(new GameEvent(answer != null ? "ANSWER_CORRECT" : "ANSWER_WRONG", gameId));
+    return mapToGameQuestionDTO(gameQuestion);
+}
+```
+
+**Nuevos métodos auxiliares:**
+```java
+private void handleCorrectAnswer(Game game, Answer answer, int multiplier, Participant participant) {
+    int points = answer.getScore() * multiplier;
+    game.setCurrentRoundPoints(game.getCurrentRoundPoints() + points);
+    accumulatePoints(game, points, participant.getTeam());
+}
+
+private void handleIncorrectAnswer(Game game, Participant participant) {
+    if (game.getCurrentRoundStatus() == GameRoundStatus.TURN_PLAYER1) {
+        incrementErrors(game, participant.getTeam());
+        if (game.getTeam1Errors() >= 3) {
+            game.setCurrentRoundStatus(GameRoundStatus.STEAL_ATTEMPT);
+            game.setTeam1Errors(0);
+        }
+    } else if (game.getCurrentRoundStatus() == GameRoundStatus.TURN_PLAYER2) {
+        // Team 2 failed the steal attempt
+        game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
+    } else if (game.getCurrentRoundStatus() == GameRoundStatus.STEAL_ATTEMPT) {
+        // Team 2 failed the steal
+        game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
+    }
+}
+```
+
+**Método `passTurn()` — nuevo:**
+```java
+@Transactional
+public GameDTO passTurn(Long gameId) {
+    Game game = getGameOrThrow(gameId);
+    if (game.getCurrentRoundStatus() != GameRoundStatus.TURN_PLAYER1) {
+        throw new IllegalStateException("Solo el equipo 1 puede pasar el turno");
+    }
+    game.setCurrentRoundStatus(GameRoundStatus.STEAL_ATTEMPT);
+    game.setTeam1Errors(0);
+    gameRepository.save(game);
+    eventPublisher.publishEvent(new GameEvent("TURN_PASSED", gameId));
+    return mapToGameDTO(game);
+}
+```
+
+**Modificar `startNextRound()` para alternar turno inicial:**
+```java
+game.setCurrentRoundStatus(
+    game.getRoundsPlayed() % 2 == 0
+        ? GameRoundStatus.TURN_PLAYER1
+        : GameRoundStatus.TURN_PLAYER2
+);
+game.setRoundsPlayed(game.getRoundsPlayed() + 1);
+game.setCurrentRoundPoints(0);
+```
+
+**Modificar `endRound()` — sumar puntos de robo:**
+```java
+@Transactional
+public GameDTO endRound(Long gameId) {
+    Game game = getGameOrThrow(gameId);
+    // Si el equipo 2 robó con éxito, sus puntos ya están en team2Score
+    // Si no, el equipo 1 conserva currentRoundPoints
+    if (game.getCurrentRoundStatus() == GameRoundStatus.STEAL_ATTEMPT) {
+        // Team 2 didn't get to steal or failed — team 1 keeps points
+        // Points already accumulated in team1Score
+    }
+    game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
+    game.setCurrentRoundPoints(0);
+    gameRepository.save(game);
+    eventPublisher.publishEvent(new GameEvent("ROUND_ENDED", gameId));
+    return mapToGameDTO(game);
+}
+```
+
+#### 3. `src/main/java/com/AlanPacheco/CienMD_app/Enum/GameRoundStatus.java`
+Agregar estado:
+```java
+public enum GameRoundStatus {
+    NOT_STARTED, TURN_PLAYER1, TURN_PLAYER2, STEAL_ATTEMPT, FINISHED
+}
+```
+
+#### 4. `src/main/java/com/AlanPacheco/CienMD_app/DTO/GameDTO.java`
+Agregar campo:
+```java
+private int currentRoundPoints;
+private int roundsPlayed;
+```
+
+#### 5. `src/main/java/com/AlanPacheco/CienMD_app/DTO/GameUpdateDTO.java`
+Agregar:
+```java
+private String eventType;
+private GameDTO game;
+// constructor, getters
+```
+
+#### 6. `src/main/resources/templates/play.html`
+Actualizar Alpine.js para:
+- Mostrar strikes visualmente (X rojos)
+- Botón "Pasar Turno"
+- Modal de "Oportunidad de Robo" para equipo 2
+- Animación de revelar respuestas al acertar
+- Manejar estado `STEAL_ATTEMPT`
+
+#### 7. `src/main/java/com/AlanPacheco/CienMD_app/Controller/GameController.java`
+Agregar endpoint:
+```java
+@PostMapping("/{id}/rounds/pass")
+public ResponseEntity<GameDTO> passTurn(@PathVariable Long id) {
+    return ResponseEntity.ok(gameService.passTurn(id));
+}
+```
+
+#### 8. `src/main/java/com/AlanPacheco/CienMD_app/Controller/GameWebSocketController.java`
+Agregar manejador:
+```java
+@MessageMapping("/game/{gameId}/pass")
+public void handlePass(@DestinationVariable Long gameId) {
+    var gameState = gameService.passTurn(gameId);
+    messagingTemplate.convertAndSend("/topic/game/" + gameId,
+            new GameUpdateDTO("TURN_PASSED", gameState));
+}
+```
+
+### V3__game_round_points.sql (nueva migración Flyway)
+```sql
+ALTER TABLE games ADD COLUMN current_round_points INT NOT NULL DEFAULT 0;
+ALTER TABLE games ADD COLUMN rounds_played INT NOT NULL DEFAULT 0;
+```
+
+### Criterios de verificación
+- [ ] Equipo 1 puede dar múltiples respuestas, revelándose cada acierto
+- [ ] 3 strikes (X) transfieren el turno a steal attempt
+- [ ] Equipo 2 roba puntos si acierta en steal attempt
+- [ ] Equipo 1 conserva puntos si equipo 2 falla el robo
+- [ ] Botón "Pasar" funciona correctamente
+- [ ] Turnos alternan entre rondas
+- [ ] `./mvnw test` pasa
+
+---
+
+## Fase 8: Panel de Administración (CRUD Preguntas/Respuestas)
+
+### Objetivo
+Crear un panel web para que los administradores gestionen el banco de preguntas y respuestas.
+
+### Archivos a crear
+
+#### `src/main/java/com/AlanPacheco/CienMD_app/Controller/AdminController.java`
+```java
+@Controller
+@RequestMapping("/admin")
+public class AdminController {
+
+    private final QuestionService questionService;
+
+    public AdminController(QuestionService questionService) {
+        this.questionService = questionService;
+    }
+
+    @GetMapping("/questions")
+    public String listQuestions(Model model) {
+        model.addAttribute("questions", questionService.getAllQuestions());
+        return "admin/questions";
+    }
+
+    @GetMapping("/questions/create")
+    public String createForm(Model model) {
+        model.addAttribute("question", new QuestionDTO());
+        return "admin/question-form";
+    }
+
+    @PostMapping("/questions/create")
+    public String create(@Valid QuestionDTO dto, BindingResult result) {
+        if (result.hasErrors()) return "admin/question-form";
+        questionService.createQuestion(dto);
+        return "redirect:/admin/questions";
+    }
+
+    @GetMapping("/questions/{id}/edit")
+    public String editForm(@PathVariable Long id, Model model) {
+        model.addAttribute("question", questionService.getQuestionById(id));
+        return "admin/question-form";
+    }
+
+    @PostMapping("/questions/{id}/edit")
+    public String update(@PathVariable Long id, @Valid QuestionDTO dto, BindingResult result) {
+        if (result.hasErrors()) return "admin/question-form";
+        questionService.updateQuestion(id, dto);
+        return "redirect:/admin/questions";
+    }
+
+    @PostMapping("/questions/{id}/delete")
+    public String delete(@PathVariable Long id) {
+        questionService.deleteQuestion(id);
+        return "redirect:/admin/questions";
+    }
+}
+```
+
+#### `src/main/java/com/AlanPacheco/CienMD_app/Service/QuestionService.java`
+```java
+@Service
+public class QuestionService {
+
+    private final QuestionRepository questionRepository;
+    private final AnswerRepository answerRepository;
+
+    public QuestionService(QuestionRepository questionRepository, AnswerRepository answerRepository) {
+        this.questionRepository = questionRepository;
+        this.answerRepository = answerRepository;
+    }
+
+    public List<QuestionDTO> getAllQuestions() {
+        return questionRepository.findAll().stream().map(this::toDTO).toList();
+    }
+
+    public QuestionDTO getQuestionById(Long id) {
+        Question q = questionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Pregunta no encontrada"));
+        return toDTO(q);
+    }
+
+    @Transactional
+    public QuestionDTO createQuestion(QuestionDTO dto) {
+        Question q = new Question();
+        q.setText(dto.getText());
+        q = questionRepository.save(q);
+        if (dto.getAnswers() != null) {
+            for (AnswerDTO a : dto.getAnswers()) {
+                Answer answer = new Answer();
+                answer.setQuestion(q);
+                answer.setText(a.getText());
+                answer.setScore(a.getScore());
+                answerRepository.save(answer);
+            }
+        }
+        return toDTO(questionRepository.findById(q.getId()).orElseThrow());
+    }
+
+    @Transactional
+    public QuestionDTO updateQuestion(Long id, QuestionDTO dto) {
+        Question q = questionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Pregunta no encontrada"));
+        q.setText(dto.getText());
+        questionRepository.save(q);
+        // Reemplazar respuestas
+        answerRepository.findByQuestionId(id).forEach(a -> answerRepository.delete(a));
+        if (dto.getAnswers() != null) {
+            for (AnswerDTO a : dto.getAnswers()) {
+                Answer answer = new Answer();
+                answer.setQuestion(q);
+                answer.setText(a.getText());
+                answer.setScore(a.getScore());
+                answerRepository.save(answer);
+            }
+        }
+        return toDTO(questionRepository.findById(q.getId()).orElseThrow());
+    }
+
+    @Transactional
+    public void deleteQuestion(Long id) {
+        answerRepository.findByQuestionId(id).forEach(a -> answerRepository.delete(a));
+        questionRepository.deleteById(id);
+    }
+
+    private QuestionDTO toDTO(Question q) {
+        QuestionDTO dto = new QuestionDTO();
+        dto.setId(q.getId());
+        dto.setText(q.getText());
+        dto.setAnswers(q.getAnswers().stream().map(a -> {
+            AnswerDTO ad = new AnswerDTO();
+            ad.setId(a.getId());
+            ad.setText(a.getText());
+            ad.setScore(a.getScore());
+            return ad;
+        }).toList());
+        return dto;
+    }
+}
+```
+
+#### Templates Thymeleaf
+
+**`src/main/resources/templates/admin/questions.html`** — Lista de preguntas con botones editar/eliminar
+**`src/main/resources/templates/admin/question-form.html`** — Formulario con campos para pregunta y respuestas dinámicas (Alpine.js para agregar/quitar respuestas)
+
+#### `src/main/resources/templates/admin/layout.html`
+Layout con barra de navegación para el panel admin.
+
+### Archivos a modificar
+
+#### `SecurityConfig.java`
+Agregar regla:
+```java
+.requestMatchers("/admin/**").hasRole("ADMIN")
+```
+
+#### `dashboard.html`
+Agregar enlace condicional (solo visible para ADMIN):
+```html
+<div sec:authorize="hasRole('ROLE_ADMIN')">
+    <a th:href="@{/admin/questions}" class="btn btn-outline-primary">Admin: Preguntas</a>
+</div>
+```
+
+### Criterios de verificación
+- [ ] Admin puede listar, crear, editar y eliminar preguntas
+- [ ] Admin puede agregar/quitar respuestas a una pregunta
+- [ ] Solo usuarios ADMIN pueden acceder a `/admin/**`
+- [ ] Formulario con validación
+- [ ] Diseño responsivo con Bootstrap
+
+---
+
+## Fase 9: Historial y Estadísticas
+
+### Objetivo
+Agregar vistas de historial de partidas y estadísticas del juego.
+
+### Archivos a crear
+
+#### `src/main/java/com/AlanPacheco/CienMD_app/DTO/GameHistoryDTO.java`
+```java
+public class GameHistoryDTO {
+    private Long id;
+    private String date;
+    private String status;
+    private int team1Score;
+    private int team2Score;
+    private String winner;
+    private int totalRounds;
+}
+```
+
+#### `src/main/java/com/AlanPacheco/CienMD_app/DTO/PlayerStatsDTO.java`
+```java
+public class PlayerStatsDTO {
+    private String playerName;
+    private int gamesPlayed;
+    private int totalScore;
+    private double averageScore;
+    private int correctAnswers;
+    private int wrongAnswers;
+}
+```
+
+#### `src/main/java/com/AlanPacheco/CienMD_app/Service/StatsService.java`
+```java
+@Service
+public class StatsService {
+
+    private final GameRepository gameRepository;
+    private final GameRoundRepository gameRoundRepository;
+    private final ParticipantRepository participantRepository;
+
+    public StatsService(GameRepository gameRepository, GameRoundRepository gameRoundRepository,
+                        ParticipantRepository participantRepository) {
+        this.gameRepository = gameRepository;
+        this.gameRoundRepository = gameRoundRepository;
+        this.participantRepository = participantRepository;
+    }
+
+    public List<GameHistoryDTO> getGameHistory() {
+        return gameRepository.findAllByOrderByDateDesc().stream()
+                .map(this::toHistoryDTO)
+                .toList();
+    }
+
+    public List<PlayerStatsDTO> getPlayerStats() {
+        List<Participant> allParticipants = participantRepository.findAll();
+        Map<String, PlayerStatsDTO> statsMap = new HashMap<>();
+
+        for (Participant p : allParticipants) {
+            statsMap.computeIfAbsent(p.getName(), name -> {
+                PlayerStatsDTO s = new PlayerStatsDTO();
+                s.setPlayerName(name);
+                return s;
+            });
+            PlayerStatsDTO s = statsMap.get(p.getName());
+            s.setGamesPlayed(s.getGamesPlayed() + 1);
+            int score = gameRoundRepository.sumScoreByParticipantId(p.getId());
+            s.setTotalScore(s.getTotalScore() + score);
+            List<GameRound> rounds = gameRoundRepository.findByParticipantId(p.getId());
+            long correct = rounds.stream().filter(GameRound::isCorrect).count();
+            long wrong = rounds.size() - correct;
+            s.setCorrectAnswers((int) (s.getCorrectAnswers() + correct));
+            s.setWrongAnswers((int) (s.getWrongAnswers() + wrong));
+        }
+
+        statsMap.values().forEach(s -> {
+            s.setAverageScore(s.getGamesPlayed() > 0
+                    ? (double) s.getTotalScore() / s.getGamesPlayed() : 0);
+        });
+
+        return new ArrayList<>(statsMap.values());
+    }
+
+    private GameHistoryDTO toHistoryDTO(Game game) {
+        GameHistoryDTO dto = new GameHistoryDTO();
+        dto.setId(game.getId());
+        dto.setDate(game.getDate() != null ? game.getDate().toString() : "");
+        dto.setStatus(game.getStatus().toString());
+        dto.setTeam1Score(game.getTeam1Score());
+        dto.setTeam2Score(game.getTeam2Score());
+        dto.setTotalRounds(game.getRoundsPlayed());
+        if (game.getTeam1Score() > game.getTeam2Score()) dto.setWinner("Equipo 1");
+        else if (game.getTeam2Score() > game.getTeam1Score()) dto.setWinner("Equipo 2");
+        else dto.setWinner("Empate");
+        return dto;
+    }
+}
+```
+
+#### `src/main/java/com/AlanPacheco/CienMD_app/Controller/StatsController.java`
+```java
+@Controller
+public class StatsController {
+
+    private final StatsService statsService;
+
+    public StatsController(StatsService statsService) {
+        this.statsService = statsService;
+    }
+
+    @GetMapping("/history")
+    public String history(Model model) {
+        model.addAttribute("games", statsService.getGameHistory());
+        return "history";
+    }
+
+    @GetMapping("/stats")
+    public String stats(Model model) {
+        model.addAttribute("players", statsService.getPlayerStats());
+        return "stats";
+    }
+}
+```
+
+#### Templates
+
+**`src/main/resources/templates/history.html`** — Tabla de partidas pasadas con filtros (por fecha, estado)
+**`src/main/resources/templates/stats.html`** — Ranking de jugadores con tabla de estadísticas
+
+### Archivos a modificar
+
+#### `src/main/java/com/AlanPacheco/CienMD_app/Repository/GameRepository.java`
+Agregar:
+```java
+List<Game> findAllByOrderByDateDesc();
+```
+
+#### `src/main/java/com/AlanPacheco/CienMD_app/Repository/GameRoundRepository.java`
+Agregar:
+```java
+List<GameRound> findByParticipantId(Long participantId);
+```
+
+#### `src/main/java/com/AlanPacheco/CienMD_app/Repository/ParticipantRepository.java`
+Agregar:
+```java
+List<Participant> findAll();
+```
+
+#### `dashboard.html`
+Agregar enlaces a `/history` y `/stats`
+
+### Criterios de verificación
+- [ ] `/history` muestra lista de partidas pasadas ordenadas por fecha
+- [ ] `/stats` muestra ranking de jugadores con estadísticas
+- [ ] Las estadísticas incluyen: partidas jugadas, puntaje total, promedio, aciertos/errores
+- [ ] Diseño responsivo
+
+---
+
+## Fase 10: Despliegue con Docker
+
+### Objetivo
+Empaquetar la aplicación y sus dependencias para despliegue en cualquier entorno.
+
+### Archivos a crear
+
+#### `Dockerfile`
+```dockerfile
+# Build stage
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline -B
+COPY src ./src
+RUN mvn package -DskipTests -Pprod
+
+# Run stage
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+COPY --from=build /app/target/*.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]
+```
+
+#### `docker-compose.yml`
+```yaml
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - MYSQL_URL=jdbc:mysql://db:3306/100md_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=root
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=100md_db
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+```
+
+#### `.dockerignore`
+```
+.git
+.gitignore
+target/
+node_modules/
+*.md
+```
+
+#### `src/main/resources/application-prod.properties`
+```properties
+# MySQL - Producción (desde variables de entorno)
+spring.datasource.url=${MYSQL_URL}
+spring.datasource.username=${MYSQL_USER}
+spring.datasource.password=${MYSQL_PASSWORD}
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# JPA
+spring.jpa.hibernate.ddl-auto=validate
+spring.jpa.show-sql=false
+
+# Swagger (deshabilitado en producción)
+springdoc.api-docs.enabled=false
+springdoc.swagger-ui.enabled=false
+
+# Server
+server.port=${PORT:8080}
+```
+
+### Criterios de verificación
+- [ ] `docker-compose build` construye sin errores
+- [ ] `docker-compose up` inicia app + MySQL
+- [ ] La app responde en `http://localhost:8080`
+- [ ] Flyway ejecuta migraciones al iniciar
+- [ ] WebSocket funciona detrás de Docker
+
+---
+
 ## Resumen de Arquitectura Final
 
 ```
@@ -1555,7 +2195,7 @@ com.AlanPacheco.CienMD_app/
 ### Orden de implementación sugerido
 Este plan está diseñado para implementarse en orden secuencial. Cada fase depende de la anterior:
 ```
-Fase 0 → Fase 1 → Fase 2 → Fase 3 → Fase 4 → Fase 5 → Fase 6
+Fase 0 → Fase 1 → Fase 2 → Fase 3 → Fase 4 → Fase 5 → Fase 6 → Fase 7 → Fase 8 → Fase 9 → Fase 10
 ```
 
 ### Checklist general antes de cada commit
