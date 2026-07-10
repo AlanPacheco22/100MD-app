@@ -34,7 +34,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -77,6 +79,8 @@ public class GameService {
         game.setTeam2Score(0);
         game.setTeam1Errors(0);
         game.setTeam2Errors(0);
+        game.setCurrentRoundPoints(0);
+        game.setRoundsPlayed(0);
         game = gameRepository.save(game);
 
         List<Question> allQuestions = questionRepository.findAll();
@@ -103,6 +107,12 @@ public class GameService {
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
         return mapToGameDTO(game);
+    }
+
+    public GameQuestionDTO getGameQuestion(Long gameId, Long questionId) {
+        GameQuestion gameQuestion = gameQuestionRepository.findById(questionId)
+                .orElseThrow(() -> new GameQuestionNotFoundException("Pregunta no encontrada: " + questionId));
+        return mapToGameQuestionDTO(gameQuestion, gameId);
     }
 
     @Transactional
@@ -142,9 +152,15 @@ public class GameService {
         }
 
         game.setStatus(GameStatus.IN_PROGRESS);
-        game.setCurrentRoundStatus(GameRoundStatus.TURN_PLAYER1);
+        game.setCurrentRoundStatus(
+                game.getRoundsPlayed() % 2 == 0
+                        ? GameRoundStatus.TURN_PLAYER1
+                        : GameRoundStatus.TURN_PLAYER1
+        );
         game.setTeam1Errors(0);
         game.setTeam2Errors(0);
+        game.setCurrentRoundPoints(0);
+        game.setRoundsPlayed(game.getRoundsPlayed() + 1);
         gameRepository.save(game);
         eventPublisher.publishEvent(new GameEvent("ROUND_STARTED", gameId));
 
@@ -187,18 +203,62 @@ public class GameService {
             int points = answer.getScore() * multiplier;
             round.setScore(points);
             round.setCorrect(true);
-            accumulatePoints(game, points, participant.getTeam());
+            handleCorrectAnswer(game, points, participant.getTeam());
+            eventPublisher.publishEvent(new GameEvent("ANSWER_CORRECT", gameId));
         } else {
             round.setScore(0);
             round.setCorrect(false);
-            incrementErrors(game, participant.getTeam());
+            handleIncorrectAnswer(game, participant.getTeam());
+            eventPublisher.publishEvent(new GameEvent("ANSWER_WRONG", gameId));
         }
 
         gameRoundRepository.save(round);
         gameRepository.save(game);
-        eventPublisher.publishEvent(new GameEvent("ANSWER_SUBMITTED", gameId));
 
-        return mapToGameQuestionDTO(gameQuestion);
+        return mapToGameQuestionDTO(gameQuestion, gameId);
+    }
+
+    private void handleCorrectAnswer(Game game, int points, int team) {
+        if (game.getCurrentRoundStatus() == GameRoundStatus.STEAL_ATTEMPT) {
+            if (team == 2) {
+                game.setTeam2Score(game.getTeam2Score() + game.getCurrentRoundPoints() + points);
+                game.setCurrentRoundPoints(0);
+                game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
+            } else {
+                game.setCurrentRoundPoints(game.getCurrentRoundPoints() + points);
+            }
+        } else {
+            game.setCurrentRoundPoints(game.getCurrentRoundPoints() + points);
+        }
+    }
+
+    private void handleIncorrectAnswer(Game game, int team) {
+        if (game.getCurrentRoundStatus() == GameRoundStatus.STEAL_ATTEMPT) {
+            game.setTeam1Score(game.getTeam1Score() + game.getCurrentRoundPoints());
+            game.setCurrentRoundPoints(0);
+            game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
+        } else if (game.getCurrentRoundStatus() == GameRoundStatus.TURN_PLAYER1) {
+            game.setTeam1Errors(game.getTeam1Errors() + 1);
+            if (game.getTeam1Errors() >= 3) {
+                game.setCurrentRoundStatus(GameRoundStatus.STEAL_ATTEMPT);
+            }
+        }
+    }
+
+    @Transactional
+    public GameDTO passTurn(Long gameId) {
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
+
+        if (game.getCurrentRoundStatus() != GameRoundStatus.TURN_PLAYER1) {
+            throw new IllegalStateException("Solo el equipo 1 puede pasar el turno");
+        }
+
+        game.setCurrentRoundStatus(GameRoundStatus.STEAL_ATTEMPT);
+        game.setTeam1Errors(0);
+        gameRepository.save(game);
+        eventPublisher.publishEvent(new GameEvent("TURN_PASSED", gameId));
+        return mapToGameDTO(game);
     }
 
     @Transactional
@@ -210,7 +270,13 @@ public class GameService {
             throw new IllegalStateException("La ronda ya terminó");
         }
 
+        if (game.getCurrentRoundStatus() == GameRoundStatus.TURN_PLAYER1 ||
+                game.getCurrentRoundStatus() == GameRoundStatus.STEAL_ATTEMPT) {
+            game.setTeam1Score(game.getTeam1Score() + game.getCurrentRoundPoints());
+        }
+
         game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
+        game.setCurrentRoundPoints(0);
         gameRepository.save(game);
         eventPublisher.publishEvent(new GameEvent("ROUND_ENDED", gameId));
 
@@ -293,28 +359,6 @@ public class GameService {
                 .toList();
     }
 
-    private void accumulatePoints(Game game, int points, int team) {
-        if (team == 1) {
-            game.setTeam1Score(game.getTeam1Score() + points);
-        } else {
-            game.setTeam2Score(game.getTeam2Score() + points);
-        }
-    }
-
-    private void incrementErrors(Game game, int team) {
-        if (team == 1) {
-            game.setTeam1Errors(game.getTeam1Errors() + 1);
-            if (game.getTeam1Errors() >= 3) {
-                game.setCurrentRoundStatus(GameRoundStatus.TURN_PLAYER2);
-            }
-        } else {
-            game.setTeam2Errors(game.getTeam2Errors() + 1);
-            if (game.getTeam2Errors() >= 1) {
-                game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
-            }
-        }
-    }
-
     private GameDTO mapToGameDTO(Game game) {
         GameDTO dto = new GameDTO();
         dto.setId(game.getId());
@@ -324,28 +368,43 @@ public class GameService {
         dto.setTeam2Score(game.getTeam2Score());
         dto.setTeam1Errors(game.getTeam1Errors());
         dto.setTeam2Errors(game.getTeam2Errors());
+        dto.setCurrentRoundPoints(game.getCurrentRoundPoints());
+        dto.setRoundsPlayed(game.getRoundsPlayed());
         if (game.getCurrentGameQuestion() != null) {
             dto.setCurrentQuestionId(game.getCurrentGameQuestion().getId());
         }
         return dto;
     }
 
-    private GameQuestionDTO mapToGameQuestionDTO(GameQuestion gameQuestion) {
+    private GameQuestionDTO mapToGameQuestionDTO(GameQuestion gameQuestion, Long gameId) {
         GameQuestionDTO dto = new GameQuestionDTO();
         dto.setId(gameQuestion.getId());
         dto.setQuestionText(gameQuestion.getQuestion().getText());
 
-        List<AnswerDTO> answers = gameQuestion.getQuestion().getAnswers().stream()
+        Set<Long> revealedIds = new HashSet<>();
+        List<GameRound> rounds = gameRoundRepository.findByGameIdAndGameQuestionId(gameId, gameQuestion.getId());
+        for (GameRound r : rounds) {
+            if (r.isCorrect()) {
+                Answer answered = answerRepository.findByQuestionIdAndTextIgnoreCase(
+                        gameQuestion.getQuestion().getId(), r.getAnswerText());
+                if (answered != null) {
+                    revealedIds.add(answered.getId());
+                }
+            }
+        }
+
+        List<AnswerDTO> answerDTOs = gameQuestion.getQuestion().getAnswers().stream()
                 .map(answer -> {
                     AnswerDTO answerDTO = new AnswerDTO();
                     answerDTO.setId(answer.getId());
                     answerDTO.setText(answer.getText());
                     answerDTO.setScore(answer.getScore());
+                    answerDTO.setRevealed(revealedIds.contains(answer.getId()));
                     return answerDTO;
                 })
                 .toList();
 
-        dto.setAnswers(answers);
+        dto.setAnswers(answerDTOs);
         return dto;
     }
 }

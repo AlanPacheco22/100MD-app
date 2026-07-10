@@ -29,11 +29,18 @@
     <div class="container mt-3">
         <div class="row g-2">
             <div class="col-5">
-                <div class="team-card team-1" :class="{ 'opacity-75': turn !== 'TURN_PLAYER1' }">
+                <div class="team-card team-1" :class="{ 'opacity-75': turn !== 'TURN_PLAYER1' && turn !== 'STEAL_ATTEMPT' }">
                     <h4 class="mb-1">Equipo 1</h4>
                     <div class="score-display" x-text="team1Score">0</div>
                     <div class="mt-1">
-                        <span class="badge bg-light text-dark" x-text="'Errores: ' + team1Errors + '/3'">0/3</span>
+                        <span class="badge bg-light text-dark">
+                            Strokes: <span x-text="team1Errors"></span>/3
+                        </span>
+                    </div>
+                    <div class="mt-1 d-flex justify-content-center gap-1">
+                        <template x-for="i in 3" :key="i">
+                            <span class="fs-4" :class="i <= team1Errors ? 'text-danger' : 'text-white opacity-25'">✗</span>
+                        </template>
                     </div>
                 </div>
             </div>
@@ -44,11 +51,11 @@
                 </div>
             </div>
             <div class="col-5">
-                <div class="team-card team-2" :class="{ 'opacity-75': turn !== 'TURN_PLAYER2' }">
+                <div class="team-card team-2" :class="{ 'opacity-75': turn !== 'TURN_PLAYER2' && turn !== 'STEAL_ATTEMPT' }">
                     <h4 class="mb-1">Equipo 2</h4>
                     <div class="score-display" x-text="team2Score">0</div>
                     <div class="mt-1">
-                        <span class="badge bg-light text-dark" x-text="'Errores: ' + team2Errors + '/1'">0/1</span>
+                        <span class="badge bg-light text-dark">Steal: 1 chance</span>
                     </div>
                 </div>
             </div>
@@ -58,7 +65,7 @@
     <!-- Current turn indicator -->
     <div class="container mt-2">
         <div class="alert text-center fw-bold py-2 mb-0"
-             :class="turn === 'TURN_PLAYER1' ? 'alert-success' : (turn === 'TURN_PLAYER2' ? 'alert-danger' : 'alert-secondary')">
+             :class="turn === 'TURN_PLAYER1' ? 'alert-success' : (turn === 'STEAL_ATTEMPT' ? 'alert-warning' : (turn === 'TURN_PLAYER2' ? 'alert-danger' : 'alert-secondary'))">
             <span x-text="turnMessage" class="fs-5"></span>
         </div>
     </div>
@@ -69,33 +76,43 @@
             <div class="card-body text-center">
 
                 <!-- No game started -->
-                <div x-show="!currentQuestion" class="py-5">
+                <div x-show="!currentQuestion && status !== 'FINISHED'" class="py-5">
                     <h3 class="mb-4">¡Bienvenidos a 100 Mexicanos Dijeron!</h3>
-                    <p class="text-muted mb-4">Presiona "Iniciar Ronda" para comenzar</p>
+                    <p class="text-muted mb-4" x-text="status === 'NOT_STARTED' ? 'Agrega participantes y presiona Iniciar Ronda' : 'Presiona Siguiente Ronda para continuar'"></p>
                     <button class="btn btn-success btn-lg" @click="startRound" :disabled="loading">
                         Iniciar Ronda
                     </button>
                 </div>
 
+                <!-- Game finished -->
+                <div x-show="status === 'FINISHED'" class="py-5">
+                    <h3 class="mb-4">¡Partida terminada!</h3>
+                    <button class="btn btn-info btn-lg" @click="getResults">Ver Resultados</button>
+                </div>
+
                 <!-- Question display -->
-                <div x-show="currentQuestion" x-cloak>
+                <div x-show="currentQuestion && status !== 'FINISHED'" x-cloak>
                     <div class="question-text mb-4" x-text="currentQuestion.questionText"></div>
 
-                    <!-- Answers -->
+                    <!-- Revealed answers -->
                     <div class="row justify-content-center">
                         <div class="col-md-8">
-                            <template x-for="(answer, index) in revealedAnswers" :key="answer.id">
-                                <div class="answer-btn reveal"
+                            <template x-for="(answer, index) in currentQuestion.answers" :key="answer.id">
+                                <div x-show="answer.revealed"
+                                     class="answer-btn reveal"
                                      :style="'animation-delay: ' + (index * 0.3) + 's'">
                                     <span x-text="answer.text"></span>
                                     <span class="score" x-text="answer.score + ' pts'"></span>
                                 </div>
                             </template>
+                            <div x-show="currentQuestion.answers.filter(a => a.revealed).length === 0" class="text-muted py-4">
+                                <em>Esperando respuestas...</em>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Answer input (for submitting answers) -->
-                    <div x-show="!roundFinished" class="mt-4">
+                    <!-- Answer input -->
+                    <div x-show="turn === 'TURN_PLAYER1' || turn === 'STEAL_ATTEMPT'" class="mt-4">
                         <div class="row justify-content-center">
                             <div class="col-md-6">
                                 <div class="input-group input-group-lg">
@@ -114,6 +131,22 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Steal announcement -->
+                    <div x-show="turn === 'STEAL_ATTEMPT' && !stealAttempted" class="mt-4" x-cloak>
+                        <div class="alert alert-warning py-3">
+                            <h5 class="mb-2">⚡ ¡Oportunidad de Robo!</h5>
+                            <p class="mb-2" x-text="'El Equipo 2 puede robar ' + currentRoundPoints + ' puntos'"></p>
+                            <p class="mb-0"><small>Equipo 2: den UNA respuesta correcta para robar todos los puntos</small></p>
+                        </div>
+                    </div>
+
+                    <!-- Pass button (only Team 1) -->
+                    <div x-show="turn === 'TURN_PLAYER1'" class="mt-3">
+                        <button class="btn btn-warning" @click="passTurn" :disabled="loading">
+                            Pasar Turno
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -123,10 +156,10 @@
     <div class="container mt-3 mb-4">
         <div class="row justify-content-center">
             <div class="col-md-8 text-center">
-                <button class="btn btn-success me-2" @click="startRound" :disabled="loading || !roundFinished">
+                <button class="btn btn-success me-2" @click="startRound" :disabled="loading || status !== 'IN_PROGRESS' || turn !== 'FINISHED'" x-show="currentQuestion">
                     Siguiente Ronda
                 </button>
-                <button class="btn btn-danger me-2" @click="endRound" :disabled="loading || roundFinished">
+                <button class="btn btn-danger me-2" @click="endRound" :disabled="loading || turn === 'FINISHED' || !currentQuestion">
                     Terminar Ronda
                 </button>
                 <button class="btn btn-info" @click="getResults" :disabled="loading">
@@ -162,7 +195,14 @@
     </div>
 </div>
 
-<style>[x-cloak] { display: none !important; }</style>
+<style>[x-cloak] { display: none !important; }
+
+.strike-x {
+    font-size: 1.5rem;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+</style>
 
 <script>
 function gameBoard() {
@@ -172,11 +212,12 @@ function gameBoard() {
         team2Score: [[${game.team2Score}]],
         team1Errors: [[${game.team1Errors}]],
         team2Errors: [[${game.team2Errors}]],
+        currentRoundPoints: [[${game.currentRoundPoints}]],
+        roundsPlayed: [[${game.roundsPlayed}]],
         status: '[[${game.status}]]',
         turn: '[[${game.currentRoundStatus}]]',
 
         currentQuestion: null,
-        revealedAnswers: [],
         answerText: '',
         loading: false,
         roundFinished: false,
@@ -184,17 +225,20 @@ function gameBoard() {
         showResults: false,
         winner: '',
         stompClient: null,
+        stealAttempted: false,
 
         get turnMessage() {
             if (this.turn === 'TURN_PLAYER1') return 'Turno del Equipo 1';
             if (this.turn === 'TURN_PLAYER2') return 'Turno del Equipo 2';
-            if (this.turn === 'FINISHED' || this.status === 'FINISHED') return 'Ronda terminada';
+            if (this.turn === 'STEAL_ATTEMPT') return '⚡ ¡Oportunidad de Robo para el Equipo 2!';
+            if (this.turn === 'FINISHED') return 'Ronda terminada';
+            if (this.status === 'FINISHED') return 'Partida terminada';
             return 'Esperando...';
         },
 
         init() {
             this.connectWebSocket();
-            if (this.turn === 'TURN_PLAYER1' || this.turn === 'TURN_PLAYER2') {
+            if (this.turn === 'TURN_PLAYER1' || this.turn === 'TURN_PLAYER2' || this.turn === 'STEAL_ATTEMPT') {
                 this.loadCurrentQuestion();
             }
         },
@@ -209,8 +253,27 @@ function gameBoard() {
                     this.team2Score = update.game.team2Score;
                     this.team1Errors = update.game.team1Errors;
                     this.team2Errors = update.game.team2Errors;
+                    this.currentRoundPoints = update.game.currentRoundPoints;
+                    this.roundsPlayed = update.game.roundsPlayed;
                     this.status = update.game.status;
                     this.turn = update.game.currentRoundStatus;
+
+                    if (update.event === 'ANSWER_CORRECT' || update.event === 'ANSWER_WRONG') {
+                        this.loadCurrentQuestion();
+                    }
+                    if (update.event === 'STEAL_ATTEMPT' || update.event === 'TURN_PASSED') {
+                        this.loadCurrentQuestion();
+                    }
+                    if (update.event === 'ROUND_STARTED') {
+                        this.roundFinished = false;
+                        this.stealAttempted = false;
+                        this.lastResult = null;
+                        this.loadCurrentQuestion();
+                    }
+                    if (update.event === 'ROUND_ENDED') {
+                        this.roundFinished = true;
+                        this.currentQuestion = null;
+                    }
                 });
             });
         },
@@ -218,9 +281,9 @@ function gameBoard() {
         async startRound() {
             this.loading = true;
             this.showResults = false;
-            this.revealedAnswers = [];
             this.currentQuestion = null;
             this.lastResult = null;
+            this.stealAttempted = false;
             try {
                 const res = await fetch('/api/games/' + this.gameId + '/rounds/start', { method: 'POST' });
                 if (!res.ok) {
@@ -231,6 +294,7 @@ function gameBoard() {
                 }
                 const game = await res.json();
                 this.updateGameState(game);
+                this.roundFinished = false;
                 await this.loadCurrentQuestion();
             } catch (e) {
                 alert('Error al iniciar ronda: ' + e.message);
@@ -242,11 +306,13 @@ function gameBoard() {
             try {
                 const gameRes = await fetch('/api/games/' + this.gameId);
                 const game = await gameRes.json();
-                if (game.currentQuestionId) {
-                    const res = await fetch('/api/games/' + this.gameId + '/rounds/start');
-                    // The question is loaded via the game state
-                }
                 this.updateGameState(game);
+                if (game.currentQuestionId) {
+                    const res = await fetch('/api/games/' + this.gameId + '/questions/' + game.currentQuestionId);
+                    if (res.ok) {
+                        this.currentQuestion = await res.json();
+                    }
+                }
             } catch (e) {
                 console.error('Error loading question:', e);
             }
@@ -257,11 +323,15 @@ function gameBoard() {
             this.loading = true;
             this.lastResult = null;
             try {
+                const participantId = this.turn === 'STEAL_ATTEMPT'
+                    ? (this.stealParticipantId || 1)
+                    : (this.getCurrentParticipantId() || 1);
+
                 const res = await fetch('/api/games/' + this.gameId + '/rounds/answer', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        participantId: 1, // TODO: seleccionar participante real
+                        participantId: participantId,
                         gameQuestionId: this.currentQuestion?.id || 1,
                         answerText: this.answerText.trim(),
                         roundMultiplier: 1
@@ -269,8 +339,11 @@ function gameBoard() {
                 });
                 if (res.ok) {
                     const data = await res.json();
+                    this.currentQuestion = data;
                     this.answerText = '';
-                    // Refresh game state
+                    if (this.turn === 'STEAL_ATTEMPT') {
+                        this.stealAttempted = true;
+                    }
                     const gameRes = await fetch('/api/games/' + this.gameId);
                     const game = await gameRes.json();
                     this.updateGameState(game);
@@ -280,6 +353,20 @@ function gameBoard() {
                 }
             } catch (e) {
                 this.lastResult = { correct: false, message: 'Error de conexión' };
+            }
+            this.loading = false;
+        },
+
+        async passTurn() {
+            this.loading = true;
+            try {
+                const res = await fetch('/api/games/' + this.gameId + '/rounds/pass', { method: 'POST' });
+                if (res.ok) {
+                    const game = await res.json();
+                    this.updateGameState(game);
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
             }
             this.loading = false;
         },
@@ -315,11 +402,17 @@ function gameBoard() {
             this.loading = false;
         },
 
+        getCurrentParticipantId() {
+            return null; // TODO: select participant from UI
+        },
+
         updateGameState(game) {
             this.team1Score = game.team1Score;
             this.team2Score = game.team2Score;
             this.team1Errors = game.team1Errors;
             this.team2Errors = game.team2Errors;
+            this.currentRoundPoints = game.currentRoundPoints;
+            this.roundsPlayed = game.roundsPlayed;
             this.status = game.status;
             this.turn = game.currentRoundStatus;
         }

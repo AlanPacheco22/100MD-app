@@ -47,6 +47,12 @@ public class Game {
     @Column(nullable = false)
     private int team2Errors;
 
+    @Column(name = "current_round_points", nullable = false)
+    private int currentRoundPoints = 0;
+
+    @Column(name = "rounds_played", nullable = false)
+    private int roundsPlayed = 0;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "current_game_question_id")
     private GameQuestion currentGameQuestion;

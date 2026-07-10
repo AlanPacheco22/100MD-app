@@ -1,0 +1,2 @@
+ALTER TABLE games ADD COLUMN current_round_points INT NOT NULL DEFAULT 0;
+ALTER TABLE games ADD COLUMN rounds_played INT NOT NULL DEFAULT 0;

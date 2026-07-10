@@ -41,4 +41,11 @@ public class GameWebSocketController {
         messagingTemplate.convertAndSend("/topic/game/" + gameId,
                 new GameUpdateDTO("ROUND_ENDED", gameState));
     }
+
+    @MessageMapping("/game/{gameId}/pass")
+    public void handlePass(@DestinationVariable Long gameId) {
+        var gameState = gameService.passTurn(gameId);
+        messagingTemplate.convertAndSend("/topic/game/" + gameId,
+                new GameUpdateDTO("TURN_PASSED", gameState));
+    }
 }

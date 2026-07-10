@@ -4,5 +4,6 @@ public enum GameRoundStatus {
     NOT_STARTED,
     TURN_PLAYER1,
     TURN_PLAYER2,
+    STEAL_ATTEMPT,
     FINISHED
 }

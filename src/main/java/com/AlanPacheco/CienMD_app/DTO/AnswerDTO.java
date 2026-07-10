@@ -9,4 +9,5 @@ public class AnswerDTO {
     private Long id;
     private String text;
     private int score;
+    private boolean revealed;
 }

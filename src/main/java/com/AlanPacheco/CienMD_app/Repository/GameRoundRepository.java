@@ -17,4 +17,7 @@ public interface GameRoundRepository extends JpaRepository<GameRound, Long> {
 
     @Query("SELECT COALESCE(SUM(gr.score), 0) FROM GameRound gr WHERE gr.game.id = :gameId AND gr.participant.team = :team")
     int sumScoreByGameIdAndTeam(@Param("gameId") Long gameId, @Param("team") int team);
+
+    @Query("SELECT gr FROM GameRound gr WHERE gr.game.id = :gameId AND gr.gameQuestion.id = :gameQuestionId")
+    List<GameRound> findByGameIdAndGameQuestionId(@Param("gameId") Long gameId, @Param("gameQuestionId") Long gameQuestionId);
 }

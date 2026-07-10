@@ -47,6 +47,12 @@ public class GameController {
         return ResponseEntity.ok(gameService.getFinalResults(gameId));
     }
 
+    @GetMapping("/{gameId}/questions/{questionId}")
+    public ResponseEntity<GameQuestionDTO> getGameQuestion(
+            @PathVariable Long gameId, @PathVariable Long questionId) {
+        return ResponseEntity.ok(gameService.getGameQuestion(gameId, questionId));
+    }
+
     @PostMapping("/{gameId}/rounds/start")
     public ResponseEntity<GameDTO> startRound(@PathVariable Long gameId) {
         return ResponseEntity.ok(gameService.startNextRound(gameId));
@@ -64,5 +70,8 @@ public class GameController {
         return ResponseEntity.ok(gameService.endRound(gameId));
     }
 
-
+    @PostMapping("/{gameId}/rounds/pass")
+    public ResponseEntity<GameDTO> passTurn(@PathVariable Long gameId) {
+        return ResponseEntity.ok(gameService.passTurn(gameId));
+    }
 }

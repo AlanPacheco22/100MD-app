@@ -13,5 +13,7 @@ public class GameDTO {
     private int team2Score;
     private int team1Errors;
     private int team2Errors;
-    private Long currentQuestionId; // ID de la pregunta actual
+    private int currentRoundPoints;
+    private int roundsPlayed;
+    private Long currentQuestionId;
 }
