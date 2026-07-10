@@ -65,8 +65,11 @@ public class GameService {
 
     @Transactional
     public GameDTO createNewGame() {
+        System.out.println("DEBUG: createNewGame() - Iniciando creacion de nueva partida");
         long questionCount = questionRepository.count();
+        System.out.println("DEBUG: createNewGame() - Total preguntas disponibles: " + questionCount);
         if (questionCount < 3) {
+            System.out.println("DEBUG: createNewGame() - ERROR: preguntas insuficientes: " + questionCount);
             throw new InsufficientQuestionsException(
                     "Se necesitan al menos 3 preguntas. Hay: " + questionCount);
         }
@@ -82,10 +85,12 @@ public class GameService {
         game.setCurrentRoundPoints(0);
         game.setRoundsPlayed(0);
         game = gameRepository.save(game);
+        System.out.println("DEBUG: createNewGame() - Partida creada con ID: " + game.getId());
 
         List<Question> allQuestions = questionRepository.findAll();
         Collections.shuffle(allQuestions);
         List<Question> selected = allQuestions.subList(0, 3);
+        System.out.println("DEBUG: createNewGame() - Seleccionadas 3 preguntas para la partida");
 
         List<GameQuestion> gameQuestions = new ArrayList<>();
         for (int i = 0; i < selected.size(); i++) {
@@ -100,6 +105,7 @@ public class GameService {
 
         game = gameRepository.save(game);
         eventPublisher.publishEvent(new GameEvent("GAME_CREATED", game.getId()));
+        System.out.println("DEBUG: createNewGame() - Partida " + game.getId() + " creada exitosamente");
         return mapToGameDTO(game);
     }
 
@@ -155,7 +161,7 @@ public class GameService {
         game.setCurrentRoundStatus(
                 game.getRoundsPlayed() % 2 == 0
                         ? GameRoundStatus.TURN_PLAYER1
-                        : GameRoundStatus.TURN_PLAYER1
+                        : GameRoundStatus.TURN_PLAYER2
         );
         game.setTeam1Errors(0);
         game.setTeam2Errors(0);
@@ -234,12 +240,21 @@ public class GameService {
 
     private void handleIncorrectAnswer(Game game, int team) {
         if (game.getCurrentRoundStatus() == GameRoundStatus.STEAL_ATTEMPT) {
-            game.setTeam1Score(game.getTeam1Score() + game.getCurrentRoundPoints());
+            if (team == 1) {
+                game.setTeam2Score(game.getTeam2Score() + game.getCurrentRoundPoints());
+            } else {
+                game.setTeam1Score(game.getTeam1Score() + game.getCurrentRoundPoints());
+            }
             game.setCurrentRoundPoints(0);
             game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
         } else if (game.getCurrentRoundStatus() == GameRoundStatus.TURN_PLAYER1) {
             game.setTeam1Errors(game.getTeam1Errors() + 1);
             if (game.getTeam1Errors() >= 3) {
+                game.setCurrentRoundStatus(GameRoundStatus.STEAL_ATTEMPT);
+            }
+        } else if (game.getCurrentRoundStatus() == GameRoundStatus.TURN_PLAYER2) {
+            game.setTeam2Errors(game.getTeam2Errors() + 1);
+            if (game.getTeam2Errors() >= 3) {
                 game.setCurrentRoundStatus(GameRoundStatus.STEAL_ATTEMPT);
             }
         }
@@ -250,12 +265,14 @@ public class GameService {
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
 
-        if (game.getCurrentRoundStatus() != GameRoundStatus.TURN_PLAYER1) {
-            throw new IllegalStateException("Solo el equipo 1 puede pasar el turno");
+        if (game.getCurrentRoundStatus() != GameRoundStatus.TURN_PLAYER1 &&
+                game.getCurrentRoundStatus() != GameRoundStatus.TURN_PLAYER2) {
+            throw new IllegalStateException("Solo se puede pasar el turno durante un turno activo");
         }
 
         game.setCurrentRoundStatus(GameRoundStatus.STEAL_ATTEMPT);
         game.setTeam1Errors(0);
+        game.setTeam2Errors(0);
         gameRepository.save(game);
         eventPublisher.publishEvent(new GameEvent("TURN_PASSED", gameId));
         return mapToGameDTO(game);
@@ -273,6 +290,8 @@ public class GameService {
         if (game.getCurrentRoundStatus() == GameRoundStatus.TURN_PLAYER1 ||
                 game.getCurrentRoundStatus() == GameRoundStatus.STEAL_ATTEMPT) {
             game.setTeam1Score(game.getTeam1Score() + game.getCurrentRoundPoints());
+        } else if (game.getCurrentRoundStatus() == GameRoundStatus.TURN_PLAYER2) {
+            game.setTeam2Score(game.getTeam2Score() + game.getCurrentRoundPoints());
         }
 
         game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
