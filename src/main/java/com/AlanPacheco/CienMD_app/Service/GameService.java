@@ -1,6 +1,7 @@
 package com.AlanPacheco.CienMD_app.Service;
 
 import com.AlanPacheco.CienMD_app.DTO.AnswerDTO;
+import com.AlanPacheco.CienMD_app.DTO.CreateGameDTO;
 import com.AlanPacheco.CienMD_app.DTO.CreateParticipantDTO;
 import com.AlanPacheco.CienMD_app.DTO.GameDTO;
 import com.AlanPacheco.CienMD_app.DTO.GameQuestionDTO;
@@ -64,14 +65,19 @@ public class GameService {
     }
 
     @Transactional
-    public GameDTO createNewGame() {
+    public GameDTO createNewGame(CreateGameDTO config) {
         System.out.println("DEBUG: createNewGame() - Iniciando creacion de nueva partida");
         long questionCount = questionRepository.count();
         System.out.println("DEBUG: createNewGame() - Total preguntas disponibles: " + questionCount);
-        if (questionCount < 3) {
+        if (questionCount < config.getTotalRounds()) {
             System.out.println("DEBUG: createNewGame() - ERROR: preguntas insuficientes: " + questionCount);
             throw new InsufficientQuestionsException(
-                    "Se necesitan al menos 3 preguntas. Hay: " + questionCount);
+                    "Se necesitan al menos " + config.getTotalRounds() + " preguntas. Hay: " + questionCount);
+        }
+
+        int[] multipliers = config.getMultipliers();
+        if (multipliers == null || multipliers.length == 0) {
+            multipliers = new int[]{1, 1, 2};
         }
 
         Game game = new Game();
@@ -84,13 +90,17 @@ public class GameService {
         game.setTeam2Errors(0);
         game.setCurrentRoundPoints(0);
         game.setRoundsPlayed(0);
+        game.setTotalRounds(config.getTotalRounds());
+        game.setTeamSize(config.getTeamSize());
+        game.setCurrentMultiplier(multipliers[0]);
+        game.setControllingTeam(null);
         game = gameRepository.save(game);
         System.out.println("DEBUG: createNewGame() - Partida creada con ID: " + game.getId());
 
         List<Question> allQuestions = questionRepository.findAll();
         Collections.shuffle(allQuestions);
-        List<Question> selected = allQuestions.subList(0, 3);
-        System.out.println("DEBUG: createNewGame() - Seleccionadas 3 preguntas para la partida");
+        List<Question> selected = allQuestions.subList(0, config.getTotalRounds());
+        System.out.println("DEBUG: createNewGame() - Seleccionadas " + config.getTotalRounds() + " preguntas para la partida");
 
         List<GameQuestion> gameQuestions = new ArrayList<>();
         for (int i = 0; i < selected.size(); i++) {
@@ -157,18 +167,26 @@ public class GameService {
             }
         }
 
+        int newRound = game.getRoundsPlayed() + 1;
+        game.setRoundsPlayed(newRound);
+
+        int[] multipliers = getMultipliersForGame(game);
+        int multiplierIndex = Math.min(newRound - 1, multipliers.length - 1);
+        game.setCurrentMultiplier(multipliers[multiplierIndex]);
+
+        int controllingTeam = (newRound % 2 == 1) ? 1 : 2;
+        game.setControllingTeam(controllingTeam);
+
         game.setStatus(GameStatus.IN_PROGRESS);
         game.setCurrentRoundStatus(
-                game.getRoundsPlayed() % 2 == 0
-                        ? GameRoundStatus.TURN_PLAYER1
-                        : GameRoundStatus.TURN_PLAYER2
+                controllingTeam == 1 ? GameRoundStatus.TURN_PLAYER1 : GameRoundStatus.TURN_PLAYER2
         );
         game.setTeam1Errors(0);
         game.setTeam2Errors(0);
         game.setCurrentRoundPoints(0);
-        game.setRoundsPlayed(game.getRoundsPlayed() + 1);
         gameRepository.save(game);
         eventPublisher.publishEvent(new GameEvent("ROUND_STARTED", gameId));
+        System.out.println("DEBUG: startNextRound() - Ronda " + newRound + " iniciada. Equipo control: " + controllingTeam + ", Multiplicador: " + game.getCurrentMultiplier());
 
         return mapToGameDTO(game);
     }
@@ -351,10 +369,18 @@ public class GameService {
             throw new IllegalStateException("No se pueden agregar participantes a una partida ya iniciada");
         }
 
+        long teamCount = participantRepository.findByGameId(gameId).stream()
+                .filter(p -> p.getTeam() == dto.getTeam())
+                .count();
+        if (teamCount >= game.getTeamSize()) {
+            throw new IllegalStateException("El equipo " + dto.getTeam() + " ya tiene " + game.getTeamSize() + " miembros (máximo)");
+        }
+
         Participant participant = new Participant();
         participant.setGame(game);
         participant.setName(dto.getName());
         participant.setTeam(dto.getTeam());
+        participant.setMemberOrder((int) teamCount);
         participant = participantRepository.save(participant);
 
         ParticipantDTO result = new ParticipantDTO();
@@ -389,6 +415,10 @@ public class GameService {
         dto.setTeam2Errors(game.getTeam2Errors());
         dto.setCurrentRoundPoints(game.getCurrentRoundPoints());
         dto.setRoundsPlayed(game.getRoundsPlayed());
+        dto.setTotalRounds(game.getTotalRounds());
+        dto.setTeamSize(game.getTeamSize());
+        dto.setCurrentMultiplier(game.getCurrentMultiplier());
+        dto.setControllingTeam(game.getControllingTeam());
         if (game.getCurrentGameQuestion() != null) {
             dto.setCurrentQuestionId(game.getCurrentGameQuestion().getId());
         }
@@ -425,5 +455,20 @@ public class GameService {
 
         dto.setAnswers(answerDTOs);
         return dto;
+    }
+
+    private int[] getMultipliersForGame(Game game) {
+        int totalRounds = game.getTotalRounds();
+        int[] multipliers = new int[totalRounds];
+        for (int i = 0; i < totalRounds; i++) {
+            if (i < totalRounds - 2) {
+                multipliers[i] = 1;
+            } else if (i == totalRounds - 2) {
+                multipliers[i] = 2;
+            } else {
+                multipliers[i] = 3;
+            }
+        }
+        return multipliers;
     }
 }

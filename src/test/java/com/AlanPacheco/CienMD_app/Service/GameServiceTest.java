@@ -1,5 +1,6 @@
 package com.AlanPacheco.CienMD_app.Service;
 
+import com.AlanPacheco.CienMD_app.DTO.CreateGameDTO;
 import com.AlanPacheco.CienMD_app.DTO.CreateParticipantDTO;
 import com.AlanPacheco.CienMD_app.DTO.GameDTO;
 import com.AlanPacheco.CienMD_app.DTO.ParticipantDTO;
@@ -59,9 +60,17 @@ class GameServiceTest {
         }
     }
 
+    private CreateGameDTO defaultConfig() {
+        CreateGameDTO config = new CreateGameDTO();
+        config.setTotalRounds(3);
+        config.setMultipliers(new int[]{1, 1, 2});
+        config.setTeamSize(5);
+        return config;
+    }
+
     @Test
     void createNewGame_WithEnoughQuestions_CreatesGame() {
-        GameDTO game = gameService.createNewGame();
+        GameDTO game = gameService.createNewGame(defaultConfig());
         assertNotNull(game.getId());
         assertEquals("NOT_STARTED", game.getStatus());
         assertEquals(0, game.getTeam1Score());
@@ -75,12 +84,14 @@ class GameServiceTest {
         gameRepository.deleteAll();
         answerRepository.deleteAll();
         questionRepository.deleteAll();
-        assertThrows(InsufficientQuestionsException.class, () -> gameService.createNewGame());
+        CreateGameDTO config = defaultConfig();
+        config.setTotalRounds(10);
+        assertThrows(InsufficientQuestionsException.class, () -> gameService.createNewGame(config));
     }
 
     @Test
     void addParticipant_ToNewGame_AddsSuccessfully() {
-        GameDTO game = gameService.createNewGame();
+        GameDTO game = gameService.createNewGame(defaultConfig());
 
         CreateParticipantDTO p1 = new CreateParticipantDTO();
         p1.setName("Jugador 1");
@@ -95,7 +106,7 @@ class GameServiceTest {
 
     @Test
     void startNextRound_WithNewGame_StartsRound() {
-        GameDTO game = gameService.createNewGame();
+        GameDTO game = gameService.createNewGame(defaultConfig());
 
         CreateParticipantDTO p1 = new CreateParticipantDTO();
         p1.setName("Jugador 1");

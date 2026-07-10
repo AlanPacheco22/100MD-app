@@ -1,51 +1,38 @@
 package com.AlanPacheco.CienMD_app.Controller;
 
-import com.AlanPacheco.CienMD_app.DTO.GameUpdateDTO;
 import com.AlanPacheco.CienMD_app.DTO.RoundDTO;
 import com.AlanPacheco.CienMD_app.Service.GameService;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 @Controller
 public class GameWebSocketController {
 
     private final GameService gameService;
-    private final SimpMessagingTemplate messagingTemplate;
 
-    public GameWebSocketController(GameService gameService, SimpMessagingTemplate messagingTemplate) {
+    public GameWebSocketController(GameService gameService) {
         this.gameService = gameService;
-        this.messagingTemplate = messagingTemplate;
     }
 
     @MessageMapping("/game/{gameId}/answer")
     public void handleAnswer(@DestinationVariable Long gameId, @Payload RoundDTO roundDTO) {
-        var result = gameService.submitAnswer(gameId, roundDTO);
-        var gameState = gameService.getGameById(gameId);
-        messagingTemplate.convertAndSend("/topic/game/" + gameId,
-                new GameUpdateDTO("ANSWER_SUBMITTED", gameState));
+        gameService.submitAnswer(gameId, roundDTO);
     }
 
     @MessageMapping("/game/{gameId}/start")
     public void handleStartRound(@DestinationVariable Long gameId) {
-        var gameState = gameService.startNextRound(gameId);
-        messagingTemplate.convertAndSend("/topic/game/" + gameId,
-                new GameUpdateDTO("ROUND_STARTED", gameState));
+        gameService.startNextRound(gameId);
     }
 
     @MessageMapping("/game/{gameId}/end")
     public void handleEndRound(@DestinationVariable Long gameId) {
-        var gameState = gameService.endRound(gameId);
-        messagingTemplate.convertAndSend("/topic/game/" + gameId,
-                new GameUpdateDTO("ROUND_ENDED", gameState));
+        gameService.endRound(gameId);
     }
 
     @MessageMapping("/game/{gameId}/pass")
     public void handlePass(@DestinationVariable Long gameId) {
-        var gameState = gameService.passTurn(gameId);
-        messagingTemplate.convertAndSend("/topic/game/" + gameId,
-                new GameUpdateDTO("TURN_PASSED", gameState));
+        gameService.passTurn(gameId);
     }
 }

@@ -16,4 +16,8 @@ public class GameDTO {
     private int currentRoundPoints;
     private int roundsPlayed;
     private Long currentQuestionId;
+    private int totalRounds;
+    private int teamSize;
+    private int currentMultiplier;
+    private Integer controllingTeam;
 }

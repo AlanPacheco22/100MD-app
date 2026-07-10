@@ -53,6 +53,18 @@ public class Game {
     @Column(name = "rounds_played", nullable = false)
     private int roundsPlayed = 0;
 
+    @Column(name = "total_rounds", nullable = false)
+    private int totalRounds = 3;
+
+    @Column(name = "team_size", nullable = false)
+    private int teamSize = 5;
+
+    @Column(name = "current_multiplier", nullable = false)
+    private int currentMultiplier = 1;
+
+    @Column(name = "controlling_team")
+    private Integer controllingTeam;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "current_game_question_id")
     private GameQuestion currentGameQuestion;

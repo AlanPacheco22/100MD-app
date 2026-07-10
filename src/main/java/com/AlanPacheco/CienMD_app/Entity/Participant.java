@@ -26,4 +26,7 @@ public class Participant {
 
     @Column(nullable = false)
     private int team = 1;
+
+    @Column(name = "member_order", nullable = false)
+    private int memberOrder = 0;
 }

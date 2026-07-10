@@ -1,5 +1,6 @@
 package com.AlanPacheco.CienMD_app.Controller;
 
+import com.AlanPacheco.CienMD_app.DTO.CreateGameDTO;
 import com.AlanPacheco.CienMD_app.DTO.GameDTO;
 import com.AlanPacheco.CienMD_app.DTO.GameQuestionDTO;
 import com.AlanPacheco.CienMD_app.DTO.GameResultsDTO;
@@ -28,8 +29,8 @@ public class GameController {
     }
 
     @PostMapping
-    public ResponseEntity<GameDTO> createGame() {
-        return ResponseEntity.status(HttpStatus.CREATED).body(gameService.createNewGame());
+    public ResponseEntity<GameDTO> createGame(@RequestBody @Valid CreateGameDTO config) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(gameService.createNewGame(config));
     }
 
     @GetMapping
