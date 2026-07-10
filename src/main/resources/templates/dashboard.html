@@ -24,6 +24,9 @@
                 <h1>Partidas</h1>
             </div>
             <div class="col text-end">
+                <div sec:authorize="hasRole('ROLE_ADMIN')" class="d-inline-block me-2">
+                    <a th:href="@{/admin/questions}" class="btn btn-outline-primary">Admin</a>
+                </div>
                 <a th:href="@{/api/games}" class="btn btn-success btn-lg">Nueva Partida</a>
             </div>
         </div>
