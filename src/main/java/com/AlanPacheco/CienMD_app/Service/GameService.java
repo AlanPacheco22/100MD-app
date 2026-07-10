@@ -670,7 +670,8 @@ public class GameService {
             }
         }
 
-        List<AnswerDTO> answerDTOs = gameQuestion.getQuestion().getAnswers().stream()
+        List<Answer> answers = gameQuestion.getQuestion().getAnswers();
+        List<AnswerDTO> answerDTOs = (answers != null ? answers : List.<Answer>of()).stream()
                 .map(answer -> {
                     AnswerDTO answerDTO = new AnswerDTO();
                     answerDTO.setId(answer.getId());
