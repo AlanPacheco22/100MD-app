@@ -8,6 +8,7 @@ import lombok.Setter;
 public class GameDTO {
     private Long id;
     private String status;
+    private String currentRoundStatus;
     private int team1Score;
     private int team2Score;
     private int team1Errors;

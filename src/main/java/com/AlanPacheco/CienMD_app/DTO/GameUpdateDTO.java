@@ -6,8 +6,13 @@ import lombok.Setter;
 @Getter
 @Setter
 public class GameUpdateDTO {
-    private String message;
-    private Long gameId;
-    private int currentScore;
-    private int roundNumber;
+    private String event;
+    private GameDTO game;
+
+    public GameUpdateDTO() {}
+
+    public GameUpdateDTO(String event, GameDTO game) {
+        this.event = event;
+        this.game = game;
+    }
 }

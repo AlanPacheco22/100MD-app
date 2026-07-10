@@ -309,6 +309,7 @@ public class GameService {
         GameDTO dto = new GameDTO();
         dto.setId(game.getId());
         dto.setStatus(game.getStatus().toString());
+        dto.setCurrentRoundStatus(game.getCurrentRoundStatus().toString());
         dto.setTeam1Score(game.getTeam1Score());
         dto.setTeam2Score(game.getTeam2Score());
         dto.setTeam1Errors(game.getTeam1Errors());
