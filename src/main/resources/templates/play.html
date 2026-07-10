@@ -14,33 +14,34 @@
 
 <div x-data="gameBoard()" x-init="init()" class="d-flex flex-column min-vh-100">
 
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg" style="background: linear-gradient(90deg, #006847 0%, #FFFFFF 50%, #CE1126 100%);">
+    <!-- ============ NAVBAR ============ -->
+    <nav class="navbar navbar-expand-lg">
         <div class="container">
-            <a class="navbar-brand fw-bold text-dark" href="#">100 Mexicanos Dijeron</a>
-            <div class="d-flex align-items-center">
-                <span class="badge bg-dark me-2" x-text="'Ronda ' + roundsPlayed + '/' + totalRounds"></span>
-                <span class="navbar-text me-3 fw-semibold" sec:authentication="name"></span>
-                <a th:href="@{/dashboard}" class="btn btn-outline-dark btn-sm">Salir</a>
+            <a class="navbar-brand" href="/dashboard">100 MEXICANOS DIJERON</a>
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-dark px-3 py-2" style="font-size: 0.9rem;"
+                      x-text="'Ronda ' + roundsPlayed + '/' + totalRounds"></span>
+                <span class="navbar-text text-secondary fw-semibold" sec:authentication="name"></span>
+                <a th:href="@{/dashboard}" class="btn btn-outline-secondary btn-sm">Salir</a>
             </div>
         </div>
     </nav>
 
-    <!-- ============ FASE 6: SETUP DE PARTICIPANTES ============ -->
-    <div x-show="status === 'NOT_STARTED' && !setupComplete" class="container mt-4 flex-grow-1">
+    <!-- ============ SECTION 1: SETUP DE EQUIPOS ============ -->
+    <div x-show="status === 'NOT_STARTED' && !setupComplete" class="container mt-4 flex-grow-1 fade-in">
         <div class="row justify-content-center">
             <div class="col-lg-10">
-                <div class="card shadow">
-                    <div class="card-header text-center" style="background: linear-gradient(90deg, #006847, #CE1126); color: white;">
-                        <h4 class="mb-0">Configurar Equipos</h4>
-                        <small x-text="'Máximo ' + teamSize + ' miembros por equipo'"></small>
+                <div class="card" style="border-radius: 20px; overflow: hidden;">
+                    <div class="card-header text-center py-4" style="background: linear-gradient(90deg, var(--green), var(--red));">
+                        <h3 class="mb-0 fw-bold" style="font-family: 'Orbitron', sans-serif;">CONFIGURAR EQUIPOS</h3>
+                        <small class="text-white-50" x-text="'Máximo ' + teamSize + ' miembros por equipo'"></small>
                     </div>
-                    <div class="card-body">
-                        <div class="row">
+                    <div class="card-body p-4">
+                        <div class="row g-4">
                             <!-- Equipo 1 -->
                             <div class="col-md-6">
-                                <h5 style="color: #006847;">Equipo 1</h5>
-                                <template x-for="(p, idx) in team1Members" :key="idx">
+                                <h5 class="fw-bold mb-3" style="color: var(--green);">EQUIPO 1</h5>
+                                <template x-for="(p, idx) in team1Members" :key="'t1-'+idx">
                                     <div class="input-group mb-2">
                                         <span class="input-group-text" x-text="(idx + 1)"></span>
                                         <input type="text" class="form-control" x-model="team1Members[idx]"
@@ -48,15 +49,15 @@
                                         <button class="btn btn-outline-danger" @click="team1Members.splice(idx, 1)">×</button>
                                     </div>
                                 </template>
-                                <button class="btn btn-outline-success btn-sm" @click="team1Members.push('')"
+                                <button class="btn btn-outline-success btn-sm mt-2" @click="team1Members.push('')"
                                         x-show="team1Members.length < teamSize">
                                     + Agregar miembro
                                 </button>
                             </div>
                             <!-- Equipo 2 -->
                             <div class="col-md-6">
-                                <h5 style="color: #CE1126;">Equipo 2</h5>
-                                <template x-for="(p, idx) in team2Members" :key="idx">
+                                <h5 class="fw-bold mb-3" style="color: var(--red);">EQUIPO 2</h5>
+                                <template x-for="(p, idx) in team2Members" :key="'t2-'+idx">
                                     <div class="input-group mb-2">
                                         <span class="input-group-text" x-text="(idx + 1)"></span>
                                         <input type="text" class="form-control" x-model="team2Members[idx]"
@@ -64,16 +65,16 @@
                                         <button class="btn btn-outline-danger" @click="team2Members.splice(idx, 1)">×</button>
                                     </div>
                                 </template>
-                                <button class="btn btn-outline-danger btn-sm" @click="team2Members.push('')"
+                                <button class="btn btn-outline-danger btn-sm mt-2" @click="team2Members.push('')"
                                         x-show="team2Members.length < teamSize">
                                     + Agregar miembro
                                 </button>
                             </div>
                         </div>
                         <div class="text-center mt-4">
-                            <button class="btn btn-success btn-lg" @click="saveParticipants"
+                            <button class="btn btn-action primary btn-lg px-5" @click="saveParticipants"
                                     :disabled="loading || team1Members.filter(n => n.trim()).length === 0 || team2Members.filter(n => n.trim()).length === 0">
-                                <span x-show="!loading">Iniciar Juego</span>
+                                <span x-show="!loading">INICIAR JUEGO</span>
                                 <span x-show="loading">Guardando...</span>
                             </button>
                         </div>
@@ -83,21 +84,21 @@
         </div>
     </div>
 
-    <!-- ============ FASE 7: GAME BOARD ============ -->
-    <div x-show="status !== 'NOT_STARTED' || setupComplete" x-cloak>
+    <!-- ============ SECTION 2: GAME BOARD ============ -->
+    <div x-show="(status !== 'NOT_STARTED' || setupComplete) && !showResults" x-cloak class="flex-grow-1">
 
-        <!-- Scores -->
+        <!-- Scores + VS -->
         <div class="container mt-3">
             <div class="row g-2 align-items-center">
                 <div class="col-5">
                     <div class="team-card team-1"
                          :class="{ 'team-active': controllingTeam === 1, 'opacity-60': controllingTeam !== 1 && status === 'IN_PROGRESS' }">
-                        <h4 class="mb-1">Equipo 1</h4>
+                        <h4>EQUIPO 1</h4>
                         <div class="score-display" x-text="team1Score">0</div>
                         <div class="mt-1" x-show="status === 'IN_PROGRESS' && controllingTeam === 1">
-                            <span class="badge bg-warning text-dark">CONTROL</span>
+                            <span class="badge bg-warning text-dark px-3 py-1">CONTROL</span>
                         </div>
-                        <div class="mt-1 d-flex justify-content-center gap-1">
+                        <div class="mt-2 d-flex justify-content-center gap-2">
                             <template x-for="i in 3" :key="'e1-'+i">
                                 <span class="strike-icon" :class="i <= team1Errors ? 'strike-active' : 'strike-inactive'">✗</span>
                             </template>
@@ -106,10 +107,12 @@
                 </div>
                 <div class="col-2 d-flex align-items-center justify-content-center">
                     <div class="text-center">
-                        <div class="fs-1 fw-bold" style="color: #006847;">VS</div>
-                        <div class="badge bg-dark mt-1" x-text="status === 'FINISHED' ? 'FINAL' : 'R' + roundsPlayed"></div>
+                        <div class="vs-text">VS</div>
+                        <div class="badge bg-dark mt-1 px-3 py-2" style="font-size: 0.85rem;"
+                             x-text="status === 'FINISHED' ? 'FINAL' : 'R' + roundsPlayed"></div>
                         <div class="mt-1">
-                            <span class="badge" :class="currentMultiplier >= 3 ? 'bg-danger' : (currentMultiplier >= 2 ? 'bg-warning text-dark' : 'bg-secondary')"
+                            <span class="badge px-2 py-1" style="font-size: 0.8rem;"
+                                  :class="currentMultiplier >= 3 ? 'bg-danger' : (currentMultiplier >= 2 ? 'bg-warning text-dark' : 'bg-secondary')"
                                   x-text="'x' + currentMultiplier"></span>
                         </div>
                     </div>
@@ -117,12 +120,12 @@
                 <div class="col-5">
                     <div class="team-card team-2"
                          :class="{ 'team-active': controllingTeam === 2, 'opacity-60': controllingTeam !== 2 && status === 'IN_PROGRESS' }">
-                        <h4 class="mb-1">Equipo 2</h4>
+                        <h4>EQUIPO 2</h4>
                         <div class="score-display" x-text="team2Score">0</div>
                         <div class="mt-1" x-show="status === 'IN_PROGRESS' && controllingTeam === 2">
-                            <span class="badge bg-warning text-dark">CONTROL</span>
+                            <span class="badge bg-warning text-dark px-3 py-1">CONTROL</span>
                         </div>
-                        <div class="mt-1 d-flex justify-content-center gap-1">
+                        <div class="mt-2 d-flex justify-content-center gap-2">
                             <template x-for="i in 3" :key="'e2-'+i">
                                 <span class="strike-icon" :class="i <= team2Errors ? 'strike-active' : 'strike-inactive'">✗</span>
                             </template>
@@ -132,7 +135,7 @@
             </div>
         </div>
 
-        <!-- Turn indicator -->
+        <!-- Turn Indicator -->
         <div class="container mt-2">
             <div class="alert text-center fw-bold py-2 mb-0 turn-indicator"
                  :class="{
@@ -142,93 +145,83 @@
                      'alert-secondary': turn === 'FINISHED' || turn === 'NOT_STARTED'
                  }">
                 <span x-text="turnMessage" class="fs-5"></span>
-                <span x-show="currentRoundPoints > 0" class="ms-2 badge bg-dark"
+                <span x-show="currentRoundPoints > 0" class="ms-2 badge bg-dark px-3 py-1"
                       x-text="currentRoundPoints + ' pts en juego'"></span>
             </div>
         </div>
 
-        <!-- No game started -->
+        <!-- No question loaded yet -->
         <div x-show="!currentQuestion && status !== 'FINISHED' && status !== 'NOT_STARTED'" class="container mt-4 text-center">
             <div class="card shadow game-board">
                 <div class="card-body py-5">
-                    <h3 class="mb-4">¡Bienvenidos a 100 Mexicanos Dijeron!</h3>
-                    <p class="text-muted mb-4" x-text="status === 'IN_PROGRESS' ? 'Presiona Siguiente Ronda para continuar' : 'Presiona Iniciar Ronda para comenzar'"></p>
-                    <button class="btn btn-success btn-lg" @click="startRound" :disabled="loading">
-                        Iniciar Ronda
+                    <h3 class="mb-4 fw-bold">¡Bienvenidos a 100 Mexicanos Dijeron!</h3>
+                    <p class="text-white-50 mb-4" x-text="status === 'IN_PROGRESS' ? 'Presiona Siguiente Ronda para continuar' : 'Presiona Iniciar Ronda para comenzar'"></p>
+                    <button class="btn btn-action primary btn-lg px-5" @click="startRound" :disabled="loading">
+                        INICIAR RONDA
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- Game finished -->
-        <div x-show="status === 'FINISHED'" class="container mt-4 text-center" x-cloak>
-            <div class="card shadow game-board">
-                <div class="card-body py-5">
-                    <h3 class="mb-4">¡Partida terminada!</h3>
-                    <button class="btn btn-info btn-lg" @click="getResults">Ver Resultados</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Question display -->
-        <div x-show="currentQuestion && status !== 'FINISHED'" class="container mt-3 flex-grow-1" x-cloak>
+        <!-- Question Board -->
+        <div x-show="currentQuestion && status !== 'FINISHED'" class="container mt-3 mb-3 flex-grow-1" x-cloak>
             <div class="card shadow game-board">
                 <div class="card-body text-center">
-                    <!-- Question text -->
+                    <!-- Question -->
                     <div class="question-text mb-4" x-text="currentQuestion?.questionText"></div>
 
-                    <!-- Revealed answers -->
+                    <!-- Answer Board -->
                     <div class="row justify-content-center">
                         <div class="col-md-8">
                             <template x-for="(answer, index) in (currentQuestion?.answers || [])" :key="answer.id">
-                                <div x-show="answer.revealed"
-                                     class="answer-row reveal"
-                                     :style="'animation-delay: ' + (index * 0.3) + 's'">
+                                <div class="answer-row" :class="{ 'revealed': answer.revealed }">
                                     <span class="answer-number" x-text="index + 1"></span>
-                                    <span class="answer-text" x-text="answer.text"></span>
-                                    <span class="answer-score" x-text="answer.score + ' pts'"></span>
+                                    <span class="answer-text" x-text="answer.revealed ? answer.text : '??????????'"></span>
+                                    <span class="answer-score" x-show="answer.revealed" x-text="answer.score + ' pts'"></span>
                                 </div>
                             </template>
-                            <div x-show="!currentQuestion?.answers?.some(a => a.revealed)" class="text-muted py-4">
+                            <div x-show="!currentQuestion?.answers?.some(a => a.revealed)" class="text-white-50 py-4">
                                 <em>Esperando respuestas...</em>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Answer input - only controlling team -->
+                    <!-- Host Input -->
                     <div x-show="(turn === 'TURN_PLAYER1' || turn === 'TURN_PLAYER2' || turn === 'STEAL_ATTEMPT') && !roundFinished" class="mt-4">
                         <div class="row justify-content-center">
                             <div class="col-md-6">
                                 <div class="input-group input-group-lg">
-                                    <input type="text" class="form-control" x-model="answerText"
-                                           placeholder="Escribe tu respuesta..." @keyup.enter="submitAnswer"
+                                    <input type="text" class="form-control host-input" x-model="answerText"
+                                           placeholder="Escribe la respuesta..." @keyup.enter="submitAnswer"
                                            :disabled="loading">
-                                    <button class="btn btn-primary" @click="submitAnswer" :disabled="loading">
+                                    <button class="btn btn-action primary" @click="submitAnswer" :disabled="loading || !answerText.trim()">
                                         <span x-show="!loading">Responder</span>
                                         <span x-show="loading">...</span>
                                     </button>
                                 </div>
-                                <div x-show="lastResult" class="mt-2 alert py-2"
-                                     :class="lastResult?.correct ? 'alert-success' : 'alert-danger'"
-                                     x-text="lastResult?.message">
+                                <!-- Result feedback -->
+                                <div x-show="lastResult" class="mt-3 py-2 px-3 rounded fw-bold text-center fade-in"
+                                     :class="lastResult?.correct ? 'text-success' : 'text-danger'"
+                                     x-text="lastResult?.message"
+                                     :style="lastResult && !lastResult.correct ? 'animation: shake 0.5s' : ''">
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Steal announcement -->
-                    <div x-show="turn === 'STEAL_ATTEMPT' && !stealAttempted" class="mt-4" x-cloak>
-                        <div class="alert alert-warning py-3">
-                            <h5 class="mb-2">¡Oportunidad de Robo!</h5>
-                            <p class="mb-2" x-text="'El Equipo ' + (controllingTeam === 1 ? '2' : '1') + ' puede robar ' + currentRoundPoints + ' puntos'"></p>
-                            <p class="mb-0"><small>Den UNA respuesta correcta para robar todos los puntos</small></p>
+                    <!-- Steal Alert -->
+                    <div x-show="turn === 'STEAL_ATTEMPT' && !stealAttempted" class="mt-4 fade-in" x-cloak>
+                        <div class="alert text-center py-3" style="background: rgba(206, 17, 38, 0.2); border: 2px solid var(--red); border-radius: 12px;">
+                            <h5 class="mb-2 fw-bold text-danger">¡OPORTUNIDAD DE ROBO!</h5>
+                            <p class="mb-2 text-white" x-text="'El Equipo ' + (controllingTeam === 1 ? '2' : '1') + ' puede robar ' + currentRoundPoints + ' puntos'"></p>
+                            <p class="mb-0 text-white-50"><small>Den UNA respuesta correcta para robar todos los puntos</small></p>
                         </div>
                     </div>
 
-                    <!-- Pass button - only controlling team -->
+                    <!-- Pass Button -->
                     <div x-show="(turn === 'TURN_PLAYER1' || turn === 'TURN_PLAYER2') && !roundFinished" class="mt-3">
-                        <button class="btn btn-warning" @click="passTurn" :disabled="loading">
-                            Pasar Turno
+                        <button class="btn btn-action warning" @click="passTurn" :disabled="loading">
+                            PASAR TURNO
                         </button>
                     </div>
                 </div>
@@ -236,54 +229,71 @@
         </div>
     </div>
 
-    <!-- Bottom controls -->
-    <div class="container mt-3 mb-4" x-show="status !== 'NOT_STARTED' || setupComplete" x-cloak>
-        <div class="row justify-content-center">
-            <div class="col-md-8 text-center">
-                <button class="btn btn-success me-2" @click="startRound" :disabled="loading || status !== 'IN_PROGRESS' || turn !== 'FINISHED'" x-show="currentQuestion">
-                    Siguiente Ronda
-                </button>
-                <button class="btn btn-danger me-2" @click="endRound" :disabled="loading || turn === 'FINISHED' || !currentQuestion">
-                    Terminar Ronda
-                </button>
-                <button class="btn btn-info" @click="getResults" :disabled="loading">
-                    Resultados
-                </button>
-            </div>
-        </div>
+    <!-- ============ SECTION 3: PANTALLA DE RESULTADOS ============ -->
+    <div x-show="showResults" x-cloak class="container mt-4 flex-grow-1 fade-in">
+        <div class="results-screen">
+            <div id="confetti-container"></div>
 
-        <!-- Results panel -->
-        <div x-show="showResults" x-cloak class="row justify-content-center mt-3">
-            <div class="col-md-6">
-                <div class="card shadow">
-                    <div class="card-header bg-dark text-white text-center">
-                        <h4 class="mb-0">Resultados Finales</h4>
-                    </div>
-                    <div class="card-body">
-                        <div class="d-flex justify-content-around text-center">
-                            <div>
-                                <h5 style="color: #006847;">Equipo 1</h5>
-                                <span class="fs-2 fw-bold" x-text="team1Score"></span>
-                            </div>
-                            <div>
-                                <h5 class="text-muted">VS</h5>
-                                <span class="fs-4" x-text="winner"></span>
-                            </div>
-                            <div>
-                                <h5 style="color: #CE1126;">Equipo 2</h5>
-                                <span class="fs-2 fw-bold" x-text="team2Score"></span>
-                            </div>
-                        </div>
+            <h2 class="mb-4 fw-bold" style="font-family: 'Orbitron', sans-serif; position: relative; z-index: 11;">¡JUEGO TERMINADO!</h2>
+
+            <!-- Winner -->
+            <div class="winner-display mb-4" style="position: relative; z-index: 11;">
+                <span x-show="winner === 'team1'" class="text-green">🏆 ¡GANA EL EQUIPO 1!</span>
+                <span x-show="winner === 'team2'" class="text-red">🏆 ¡GANA EL EQUIPO 2!</span>
+                <span x-show="winner === 'draw'" class="text-gold">🤝 ¡EMPATE!</span>
+            </div>
+
+            <!-- Scores -->
+            <div class="row justify-content-center mb-4" style="position: relative; z-index: 11;">
+                <div class="col-md-4">
+                    <div class="team-card-result">
+                        <h5 class="fw-bold mb-2" style="color: var(--green);">EQUIPO 1</h5>
+                        <div class="score-display" x-text="team1Score"></div>
                     </div>
                 </div>
+                <div class="col-md-4">
+                    <div class="team-card-result">
+                        <h5 class="fw-bold mb-2 text-gold">EMPATE</h5>
+                        <div class="vs-text">VS</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="team-card-result">
+                        <h5 class="fw-bold mb-2" style="color: var(--red);">EQUIPO 2</h5>
+                        <div class="score-display" x-text="team2Score"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="mt-4" style="position: relative; z-index: 11;">
+                <a href="/dashboard" class="btn btn-action primary btn-lg me-3">Volver al Dashboard</a>
+                <button class="btn btn-action warning btn-lg" @click="createNewGame">Jugar de Nuevo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ BOTTOM CONTROLS ============ -->
+    <div class="container mt-3 mb-4" x-show="(status !== 'NOT_STARTED' || setupComplete) && !showResults" x-cloak>
+        <div class="row justify-content-center">
+            <div class="col-md-8 text-center">
+                <button class="btn btn-action primary me-2" @click="startRound"
+                        :disabled="loading || status !== 'IN_PROGRESS' || turn !== 'FINISHED'" x-show="currentQuestion">
+                    SIGUIENTE RONDA
+                </button>
+                <button class="btn btn-action danger me-2" @click="endRound"
+                        :disabled="loading || turn === 'FINISHED' || !currentQuestion">
+                    TERMINAR RONDA
+                </button>
+                <button class="btn btn-action info" @click="getResults" :disabled="loading || status !== 'FINISHED'">
+                    RESULTADOS
+                </button>
             </div>
         </div>
     </div>
 </div>
 
-<style>
-[x-cloak] { display: none !important; }
-</style>
+<script th:src="@{/js/audio.js}"></script>
 
 <script>
 function gameBoard() {
@@ -312,7 +322,6 @@ function gameBoard() {
         stompClient: null,
         stealAttempted: false,
 
-        // FASE 6: participant setup
         setupComplete: false,
         team1Members: [],
         team2Members: [],
@@ -330,6 +339,7 @@ function gameBoard() {
         },
 
         init() {
+            AudioManager.init();
             this.connectWebSocket();
             this.loadParticipants();
             if (this.status !== 'NOT_STARTED') {
@@ -337,6 +347,9 @@ function gameBoard() {
                 if (this.turn === 'TURN_PLAYER1' || this.turn === 'TURN_PLAYER2' || this.turn === 'STEAL_ATTEMPT') {
                     this.loadCurrentQuestion();
                 }
+            }
+            if (this.status === 'FINISHED') {
+                this.getResults();
             }
         },
 
@@ -358,32 +371,40 @@ function gameBoard() {
                     this.status = update.game.status;
                     this.turn = update.game.currentRoundStatus;
 
-                    if (update.event === 'ANSWER_CORRECT' || update.event === 'ANSWER_WRONG') {
+                    if (update.event === 'ANSWER_CORRECT') {
                         this.loadCurrentQuestion();
-                        if (update.event === 'ANSWER_WRONG') {
-                            this.lastResult = { correct: false, message: '¡Respuesta incorrecta!' };
-                        } else {
-                            this.lastResult = { correct: true, message: '¡Correcta! +' + this.currentRoundPoints + ' pts' };
-                        }
+                        AudioManager.playCorrect();
+                        this.lastResult = { correct: true, message: '¡Correcta! +' + this.currentRoundPoints + ' pts' };
+                    }
+                    if (update.event === 'ANSWER_WRONG') {
+                        this.loadCurrentQuestion();
+                        AudioManager.playWrong();
+                        this.lastResult = { correct: false, message: '¡Respuesta incorrecta!' };
                     }
                     if (update.event === 'STEAL_ATTEMPT' || update.event === 'TURN_PASSED') {
                         this.loadCurrentQuestion();
+                        AudioManager.playStealAlert();
                     }
                     if (update.event === 'ROUND_STARTED') {
                         this.roundFinished = false;
                         this.stealAttempted = false;
                         this.lastResult = null;
+                        AudioManager.playRoundStart();
                         this.loadCurrentQuestion();
                     }
                     if (update.event === 'ROUND_ENDED') {
                         this.roundFinished = true;
                         this.currentQuestion = null;
+                        AudioManager.playRoundEnd();
+                    }
+                    if (update.event === 'GAME_FINISHED') {
+                        this.getResults();
+                        AudioManager.playCelebration();
                     }
                 });
             });
         },
 
-        // FASE 6: participant management
         async loadParticipants() {
             try {
                 const res = await fetch('/api/games/' + this.gameId + '/participants');
@@ -421,6 +442,7 @@ function gameBoard() {
                 }
                 await this.loadParticipants();
                 this.setupComplete = true;
+                AudioManager.playClick();
             } catch (e) {
                 alert('Error guardando participantes: ' + e.message);
             }
@@ -458,6 +480,7 @@ function gameBoard() {
                 const game = await res.json();
                 this.updateGameState(game);
                 this.roundFinished = false;
+                AudioManager.playRoundStart();
                 await this.loadCurrentQuestion();
             } catch (e) {
                 alert('Error al iniciar ronda: ' + e.message);
@@ -526,6 +549,7 @@ function gameBoard() {
                 if (res.ok) {
                     const game = await res.json();
                     this.updateGameState(game);
+                    AudioManager.playStealAlert();
                 }
             } catch (e) {
                 alert('Error: ' + e.message);
@@ -542,6 +566,7 @@ function gameBoard() {
                     this.updateGameState(game);
                     this.roundFinished = true;
                     this.currentQuestion = null;
+                    AudioManager.playRoundEnd();
                 }
             } catch (e) {
                 alert('Error: ' + e.message);
@@ -557,11 +582,35 @@ function gameBoard() {
                 const data = await res.json();
                 this.team1Score = data.team1Score;
                 this.team2Score = data.team2Score;
-                this.winner = data.winner === 'team1' ? 'Gana Equipo 1' : (data.winner === 'team2' ? 'Gana Equipo 2' : 'Empate');
+                this.winner = data.winner;
+                AudioManager.playCelebration();
+                this.$nextTick(() => this.createConfetti());
             } catch (e) {
                 alert('Error: ' + e.message);
             }
             this.loading = false;
+        },
+
+        createConfetti() {
+            const container = document.getElementById('confetti-container');
+            if (!container) return;
+            container.innerHTML = '';
+            const colors = ['#006847', '#CE1126', '#FFD700', '#FFFFFF'];
+            for (let i = 0; i < 80; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti-piece';
+                confetti.style.left = Math.random() * 100 + '%';
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.animationDelay = Math.random() * 3 + 's';
+                confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+                confetti.style.width = (Math.random() * 8 + 5) + 'px';
+                confetti.style.height = (Math.random() * 8 + 5) + 'px';
+                container.appendChild(confetti);
+            }
+        },
+
+        createNewGame() {
+            window.location.href = '/dashboard';
         },
 
         updateGameState(game) {
