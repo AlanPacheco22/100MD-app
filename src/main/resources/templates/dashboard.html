@@ -24,7 +24,9 @@
                 <h1>Partidas</h1>
             </div>
             <div class="col text-end">
-                <div sec:authorize="hasRole('ROLE_ADMIN')" class="d-inline-block me-2">
+                <a th:href="@{/history}" class="btn btn-outline-info me-1">Historial</a>
+                <a th:href="@{/stats}" class="btn btn-outline-info me-1">Estadísticas</a>
+                <div sec:authorize="hasRole('ROLE_ADMIN')" class="d-inline-block me-1">
                     <a th:href="@{/admin/questions}" class="btn btn-outline-primary">Admin</a>
                 </div>
                 <a th:href="@{/api/games}" class="btn btn-success btn-lg">Nueva Partida</a>

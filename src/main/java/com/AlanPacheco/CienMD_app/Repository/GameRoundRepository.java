@@ -20,4 +20,10 @@ public interface GameRoundRepository extends JpaRepository<GameRound, Long> {
 
     @Query("SELECT gr FROM GameRound gr WHERE gr.game.id = :gameId AND gr.gameQuestion.id = :gameQuestionId")
     List<GameRound> findByGameIdAndGameQuestionId(@Param("gameId") Long gameId, @Param("gameQuestionId") Long gameQuestionId);
+
+    @Query("SELECT gr FROM GameRound gr WHERE gr.participant.id = :participantId")
+    List<GameRound> findByParticipantId(@Param("participantId") Long participantId);
+
+    @Query("SELECT gr FROM GameRound gr WHERE gr.game.id = :gameId")
+    List<GameRound> findByGameId(@Param("gameId") Long gameId);
 }

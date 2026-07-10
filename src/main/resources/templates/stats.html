@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estadísticas — 100 Mexicanos Dijeron</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link th:href="@{/css/style.css}" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg" style="background: linear-gradient(90deg, #006847 0%, #FFFFFF 50%, #CE1126 100%);">
+        <div class="container">
+            <a class="navbar-brand fw-bold text-dark" href="#">100 Mexicanos Dijeron</a>
+            <div class="d-flex align-items-center">
+                <span class="navbar-text me-3 text-dark fw-semibold" sec:authentication="name"></span>
+                <a th:href="@{/dashboard}" class="btn btn-outline-dark btn-sm me-2">Dashboard</a>
+                <a th:href="@{/logout}" class="btn btn-outline-dark btn-sm">Salir</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1 class="mb-4">Estadísticas de Jugadores</h1>
+
+        <div class="card">
+            <div class="card-body">
+                <div th:if="${players.empty}" class="text-center py-5">
+                    <p class="text-muted fs-5">No hay datos de jugadores aún.</p>
+                </div>
+                <div th:if="${!players.empty}" class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>#</th>
+                                <th>Jugador</th>
+                                <th>Partidas</th>
+                                <th>Puntaje Total</th>
+                                <th>Promedio</th>
+                                <th>Aciertos</th>
+                                <th>Errores</th>
+                                <th>Precisión</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="p, iter : ${players}">
+                                <td th:text="${iter.count}"></td>
+                                <td class="fw-bold" th:text="${p.playerName}"></td>
+                                <td class="text-center" th:text="${p.gamesPlayed}"></td>
+                                <td class="text-center fw-bold" th:text="${p.totalScore}"></td>
+                                <td class="text-center" th:text="${p.averageScore}"></td>
+                                <td class="text-center" style="color: #006847;" th:text="${p.correctAnswers}"></td>
+                                <td class="text-center" style="color: #CE1126;" th:text="${p.wrongAnswers}"></td>
+                                <td class="text-center" th:text="${(p.correctAnswers + p.wrongAnswers) > 0 ? Math.round(p.correctAnswers * 100.0 / (p.correctAnswers + p.wrongAnswers)) + '%' : 'N/A'}"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
