@@ -3,10 +3,14 @@ package com.AlanPacheco.CienMD_app.DTO;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 @Getter
 @Setter
 public class GameDTO {
     private Long id;
+    private LocalDateTime date;
     private String status;
     private String currentRoundStatus;
     private int team1Score;
@@ -20,4 +24,7 @@ public class GameDTO {
     private int teamSize;
     private int currentMultiplier;
     private Integer controllingTeam;
+    private String winner;
+    private String gameQuestionText;
+    private List<AnswerDTO> currentAnswers;
 }

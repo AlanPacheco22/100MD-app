@@ -75,4 +75,10 @@ public class GameController {
     public ResponseEntity<GameDTO> passTurn(@PathVariable Long gameId) {
         return ResponseEntity.ok(gameService.passTurn(gameId));
     }
+
+    @PostMapping("/{gameId}/rounds/reveal/{answerId}")
+    public ResponseEntity<GameQuestionDTO> revealAnswer(
+            @PathVariable Long gameId, @PathVariable Long answerId) {
+        return ResponseEntity.ok(gameService.revealAnswer(gameId, answerId));
+    }
 }

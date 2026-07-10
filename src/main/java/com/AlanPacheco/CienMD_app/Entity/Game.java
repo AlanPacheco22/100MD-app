@@ -33,18 +33,19 @@ public class Game {
     private GameStatus status;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "current_round_status")
     private GameRoundStatus currentRoundStatus;
 
-    @Column(nullable = false)
+    @Column(name = "team1_score", nullable = false)
     private int team1Score;
 
-    @Column(nullable = false)
+    @Column(name = "team2_score", nullable = false)
     private int team2Score;
 
-    @Column(nullable = false)
+    @Column(name = "team1_errors", nullable = false)
     private int team1Errors;
 
-    @Column(nullable = false)
+    @Column(name = "team2_errors", nullable = false)
     private int team2Errors;
 
     @Column(name = "current_round_points", nullable = false)

@@ -26,7 +26,7 @@ public class GameRound {
     @JoinColumn(name = "game_question_id", nullable = false)
     private GameQuestion gameQuestion;
 
-    @Column(nullable = false)
+    @Column(name = "answer_text", nullable = false)
     private String answerText;
 
     @Column(nullable = false)

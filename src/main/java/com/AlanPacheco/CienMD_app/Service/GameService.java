@@ -163,7 +163,8 @@ public class GameService {
                 game.setStatus(GameStatus.FINISHED);
                 game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
                 gameRepository.save(game);
-                throw new IllegalStateException("Ya no hay más preguntas. La partida ha terminado.");
+                eventPublisher.publishEvent(new GameEvent("GAME_FINISHED", gameId));
+                return mapToGameDTO(game);
             }
         }
 
@@ -289,8 +290,6 @@ public class GameService {
         }
 
         game.setCurrentRoundStatus(GameRoundStatus.STEAL_ATTEMPT);
-        game.setTeam1Errors(0);
-        game.setTeam2Errors(0);
         gameRepository.save(game);
         eventPublisher.publishEvent(new GameEvent("TURN_PASSED", gameId));
         return mapToGameDTO(game);
@@ -305,11 +304,12 @@ public class GameService {
             throw new IllegalStateException("La ronda ya terminó");
         }
 
-        if (game.getCurrentRoundStatus() == GameRoundStatus.TURN_PLAYER1 ||
-                game.getCurrentRoundStatus() == GameRoundStatus.STEAL_ATTEMPT) {
-            game.setTeam1Score(game.getTeam1Score() + game.getCurrentRoundPoints());
-        } else if (game.getCurrentRoundStatus() == GameRoundStatus.TURN_PLAYER2) {
-            game.setTeam2Score(game.getTeam2Score() + game.getCurrentRoundPoints());
+        if (game.getControllingTeam() != null) {
+            if (game.getControllingTeam() == 1) {
+                game.setTeam1Score(game.getTeam1Score() + game.getCurrentRoundPoints());
+            } else {
+                game.setTeam2Score(game.getTeam2Score() + game.getCurrentRoundPoints());
+            }
         }
 
         game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
@@ -318,6 +318,30 @@ public class GameService {
         eventPublisher.publishEvent(new GameEvent("ROUND_ENDED", gameId));
 
         return mapToGameDTO(game);
+    }
+
+    @Transactional
+    public GameQuestionDTO revealAnswer(Long gameId, Long answerId) {
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
+
+        if (game.getCurrentGameQuestion() == null) {
+            throw new IllegalStateException("No hay pregunta activa en esta partida");
+        }
+
+        Answer answer = answerRepository.findById(answerId)
+                .orElseThrow(() -> new IllegalArgumentException("Respuesta no encontrada: " + answerId));
+
+        GameQuestion gameQuestion = game.getCurrentGameQuestion();
+        GameQuestionDTO dto = mapToGameQuestionDTO(gameQuestion, gameId);
+
+        for (AnswerDTO ans : dto.getAnswers()) {
+            if (ans.getId().equals(answerId)) {
+                ans.setRevealed(true);
+            }
+        }
+
+        return dto;
     }
 
     public GameResultsDTO getFinalResults(Long gameId) {
@@ -407,6 +431,7 @@ public class GameService {
     private GameDTO mapToGameDTO(Game game) {
         GameDTO dto = new GameDTO();
         dto.setId(game.getId());
+        dto.setDate(game.getDate());
         dto.setStatus(game.getStatus().toString());
         dto.setCurrentRoundStatus(game.getCurrentRoundStatus().toString());
         dto.setTeam1Score(game.getTeam1Score());
@@ -421,8 +446,26 @@ public class GameService {
         dto.setControllingTeam(game.getControllingTeam());
         if (game.getCurrentGameQuestion() != null) {
             dto.setCurrentQuestionId(game.getCurrentGameQuestion().getId());
+            dto.setGameQuestionText(game.getCurrentGameQuestion().getQuestion().getText());
+            dto.setCurrentAnswers(getCurrentAnswersForQuestion(game));
+        }
+        if (game.getStatus() == GameStatus.FINISHED) {
+            if (game.getTeam1Score() > game.getTeam2Score()) {
+                dto.setWinner("team1");
+            } else if (game.getTeam2Score() > game.getTeam1Score()) {
+                dto.setWinner("team2");
+            } else {
+                dto.setWinner("draw");
+            }
         }
         return dto;
+    }
+
+    private List<AnswerDTO> getCurrentAnswersForQuestion(Game game) {
+        if (game.getCurrentGameQuestion() == null) {
+            return List.of();
+        }
+        return mapToGameQuestionDTO(game.getCurrentGameQuestion(), game.getId()).getAnswers();
     }
 
     private GameQuestionDTO mapToGameQuestionDTO(GameQuestion gameQuestion, Long gameId) {
