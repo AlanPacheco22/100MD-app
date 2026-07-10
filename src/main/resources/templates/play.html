@@ -6,9 +6,9 @@
     <title th:text="'Jugar — Partida #' + ${game.id} + ' — 100 Mexicanos Dijeron'">Jugar — 100 Mexicanos Dijeron</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link th:href="@{/css/style.css}" rel="stylesheet">
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 </head>
 <body>
 
@@ -73,7 +73,7 @@
                         </div>
                         <div class="text-center mt-4">
                             <button class="btn btn-action primary btn-lg px-5" @click="saveParticipants"
-                                    :disabled="loading || team1Members.filter(n => n.trim()).length === 0 || team2Members.filter(n => n.trim()).length === 0">
+                                    :disabled="loading || team1Members.filter(n => n.trim()).length < 2 || team2Members.filter(n => n.trim()).length < 2">
                                 <span x-show="!loading">INICIAR JUEGO</span>
                                 <span x-show="loading">Guardando...</span>
                             </button>
@@ -151,7 +151,7 @@
         </div>
 
         <!-- No question loaded yet -->
-        <div x-show="!currentQuestion && status !== 'FINISHED' && status !== 'NOT_STARTED'" class="container mt-4 text-center">
+        <div x-show="!currentQuestion && status !== 'FINISHED'" class="container mt-4 text-center">
             <div class="card shadow game-board">
                 <div class="card-body py-5">
                     <h3 class="mb-4 fw-bold">¡Bienvenidos a 100 Mexicanos Dijeron!</h3>
@@ -174,52 +174,50 @@
                     <div class="row justify-content-center">
                         <div class="col-md-8">
                             <template x-for="(answer, index) in (currentQuestion?.answers || [])" :key="answer.id">
-                                <div class="answer-row" :class="{ 'revealed': answer.revealed }">
+                                <div class="answer-row"
+                                     :class="{ 'revealed': answer.revealed, 'answer-hidden': !answer.revealed && (turn === 'TURN_PLAYER1' || turn === 'TURN_PLAYER2' || turn === 'STEAL_ATTEMPT') }"
+                                     @click="!answer.revealed && (turn === 'TURN_PLAYER1' || turn === 'TURN_PLAYER2' || turn === 'STEAL_ATTEMPT') && revealAnswer(answer.id)"
+                                     :style="!answer.revealed && (turn === 'TURN_PLAYER1' || turn === 'TURN_PLAYER2' || turn === 'STEAL_ATTEMPT') ? 'cursor: pointer;' : ''">
                                     <span class="answer-number" x-text="index + 1"></span>
                                     <span class="answer-text" x-text="answer.revealed ? answer.text : '??????????'"></span>
                                     <span class="answer-score" x-show="answer.revealed" x-text="answer.score + ' pts'"></span>
+                                    <span x-show="!answer.revealed && turn === 'STEAL_ATTEMPT'" class="reveal-hint">CLIC PARA ROBAR</span>
+                                    <span x-show="!answer.revealed && (turn === 'TURN_PLAYER1' || turn === 'TURN_PLAYER2')" class="reveal-hint">CLIC PARA REVELAR</span>
                                 </div>
                             </template>
-                            <div x-show="!currentQuestion?.answers?.some(a => a.revealed)" class="text-white-50 py-4">
-                                <em>Esperando respuestas...</em>
+                            <div x-show="currentQuestion?.answers && currentQuestion.answers.every(a => a.revealed)" class="text-white-50 py-4">
+                                <em>Todas las respuestas reveladas</em>
+                            </div>
+                            <div x-show="!currentQuestion?.answers || currentQuestion.answers.length === 0" class="text-white-50 py-4">
+                                <em>No hay respuestas disponibles</em>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Host Input -->
-                    <div x-show="(turn === 'TURN_PLAYER1' || turn === 'TURN_PLAYER2' || turn === 'STEAL_ATTEMPT') && !roundFinished" class="mt-4">
-                        <div class="row justify-content-center">
-                            <div class="col-md-6">
-                                <div class="input-group input-group-lg">
-                                    <input type="text" class="form-control host-input" x-model="answerText"
-                                           placeholder="Escribe la respuesta..." @keyup.enter="submitAnswer"
-                                           :disabled="loading">
-                                    <button class="btn btn-action primary" @click="submitAnswer" :disabled="loading || !answerText.trim()">
-                                        <span x-show="!loading">Responder</span>
-                                        <span x-show="loading">...</span>
-                                    </button>
-                                </div>
-                                <!-- Result feedback -->
-                                <div x-show="lastResult" class="mt-3 py-2 px-3 rounded fw-bold text-center fade-in"
-                                     :class="lastResult?.correct ? 'text-success' : 'text-danger'"
-                                     x-text="lastResult?.message"
-                                     :style="lastResult && !lastResult.correct ? 'animation: shake 0.5s' : ''">
-                                </div>
-                            </div>
+                    <!-- Result feedback -->
+                    <div x-show="lastResult" class="mt-3 py-2 px-3 rounded fw-bold text-center fade-in"
+                         :class="lastResult?.correct ? 'text-success' : 'text-danger'"
+                         x-text="lastResult?.message"
+                         :style="lastResult && !lastResult.correct ? 'animation: shake 0.5s' : ''">
+                    </div>
+
+                    <!-- Oportunidad de Robo -->
+                    <div x-show="turn === 'STEAL_ATTEMPT'" class="mt-4 fade-in" x-cloak>
+                        <div class="alert text-center py-3" style="background: rgba(255, 215, 0, 0.15); border: 2px solid var(--gold); border-radius: 12px;">
+                            <h5 class="mb-2 fw-bold" style="color: var(--gold);">¡OPORTUNIDAD DE ROBO!</h5>
+                            <p class="mb-1 text-white fw-bold" x-text="'Equipo ' + (controllingTeam === 1 ? '2' : '1') + ' puede robar ' + currentRoundPoints + ' puntos'"></p>
+                            <p class="mb-1 text-white-50"><small>Haz clic en una respuesta oculta para intentar el robo</small></p>
+                            <p class="mb-0 text-white-50"><small>O selecciona <strong>TERMINAR RONDA</strong> para que el Equipo <span x-text="controllingTeam"></span> conserve los puntos</small></p>
                         </div>
                     </div>
 
-                    <!-- Steal Alert -->
-                    <div x-show="turn === 'STEAL_ATTEMPT' && !stealAttempted" class="mt-4 fade-in" x-cloak>
-                        <div class="alert text-center py-3" style="background: rgba(206, 17, 38, 0.2); border: 2px solid var(--red); border-radius: 12px;">
-                            <h5 class="mb-2 fw-bold text-danger">¡OPORTUNIDAD DE ROBO!</h5>
-                            <p class="mb-2 text-white" x-text="'El Equipo ' + (controllingTeam === 1 ? '2' : '1') + ' puede robar ' + currentRoundPoints + ' puntos'"></p>
-                            <p class="mb-0 text-white-50"><small>Den UNA respuesta correcta para robar todos los puntos</small></p>
-                        </div>
-                    </div>
-
-                    <!-- Pass Button -->
-                    <div x-show="(turn === 'TURN_PLAYER1' || turn === 'TURN_PLAYER2') && !roundFinished" class="mt-3">
+                    <!-- Pass + Error Buttons -->
+                    <div x-show="(turn === 'TURN_PLAYER1' || turn === 'TURN_PLAYER2') && !roundFinished && currentQuestion?.answers && !currentQuestion.answers.every(a => a.revealed)" class="mt-3 d-flex justify-content-center gap-3">
+                        <button class="btn btn-action danger btn-lg strike-btn" @click="incrementError" :disabled="loading">
+                            <span class="strike-icon strike-active" style="font-size: 1.2rem;">✗</span>
+                            ERROR
+                            <span class="badge bg-dark ms-1" x-text="(controllingTeam === 1 ? team1Errors : team2Errors) + '/3'"></span>
+                        </button>
                         <button class="btn btn-action warning" @click="passTurn" :disabled="loading">
                             PASAR TURNO
                         </button>
@@ -308,7 +306,7 @@ function gameBoard() {
         totalRounds: [[${game.totalRounds}]],
         teamSize: [[${game.teamSize}]],
         currentMultiplier: [[${game.currentMultiplier}]],
-        controllingTeam: [[${game.controllingTeam}]] || null,
+        controllingTeam: [[${game.controllingTeam != null ? game.controllingTeam : 'null'}]],
         status: '[[${game.status}]]',
         turn: '[[${game.currentRoundStatus}]]',
 
@@ -339,16 +337,20 @@ function gameBoard() {
         },
 
         init() {
+            console.log('[INIT] gameId=' + this.gameId + ', status=' + this.status + ', turn=' + this.turn);
             AudioManager.init();
             this.connectWebSocket();
             this.loadParticipants();
             if (this.status !== 'NOT_STARTED') {
                 this.setupComplete = true;
+                console.log('[INIT] Juego ya iniciado, setupComplete=true');
                 if (this.turn === 'TURN_PLAYER1' || this.turn === 'TURN_PLAYER2' || this.turn === 'STEAL_ATTEMPT') {
+                    console.log('[INIT] Turno activo, cargando pregunta actual...');
                     this.loadCurrentQuestion();
                 }
             }
             if (this.status === 'FINISHED') {
+                console.log('[INIT] Partida terminada, cargando resultados...');
                 this.getResults();
             }
         },
@@ -356,9 +358,12 @@ function gameBoard() {
         connectWebSocket() {
             const socket = new SockJS('/ws');
             this.stompClient = Stomp.over(socket);
+            console.log('[WS] Conectando a /ws...');
             this.stompClient.connect({}, () => {
+                console.log('[WS] Conectado! Suscribiendo a /topic/game/' + this.gameId);
                 this.stompClient.subscribe('/topic/game/' + this.gameId, (message) => {
                     const update = JSON.parse(message.body);
+                    console.log('[WS] Mensaje recibido:', update.event, update.game);
                     this.team1Score = update.game.team1Score;
                     this.team2Score = update.game.team2Score;
                     this.team1Errors = update.game.team1Errors;
@@ -370,22 +375,27 @@ function gameBoard() {
                     this.controllingTeam = update.game.controllingTeam;
                     this.status = update.game.status;
                     this.turn = update.game.currentRoundStatus;
+                    console.log('[WS] Estado actualizado: status=' + this.status + ', turn=' + this.turn + ', controllingTeam=' + this.controllingTeam);
 
                     if (update.event === 'ANSWER_CORRECT') {
+                        console.log('[WS] -> ANSWER_CORRECT, recargando pregunta...');
                         this.loadCurrentQuestion();
                         AudioManager.playCorrect();
                         this.lastResult = { correct: true, message: '¡Correcta! +' + this.currentRoundPoints + ' pts' };
                     }
                     if (update.event === 'ANSWER_WRONG') {
+                        console.log('[WS] -> ANSWER_WRONG, recargando pregunta...');
                         this.loadCurrentQuestion();
                         AudioManager.playWrong();
                         this.lastResult = { correct: false, message: '¡Respuesta incorrecta!' };
                     }
                     if (update.event === 'STEAL_ATTEMPT' || update.event === 'TURN_PASSED') {
+                        console.log('[WS] -> ' + update.event + ', recargando pregunta...');
                         this.loadCurrentQuestion();
                         AudioManager.playStealAlert();
                     }
                     if (update.event === 'ROUND_STARTED') {
+                        console.log('[WS] -> ROUND_STARTED');
                         this.roundFinished = false;
                         this.stealAttempted = false;
                         this.lastResult = null;
@@ -393,11 +403,13 @@ function gameBoard() {
                         this.loadCurrentQuestion();
                     }
                     if (update.event === 'ROUND_ENDED') {
+                        console.log('[WS] -> ROUND_ENDED, limpiando pregunta...');
                         this.roundFinished = true;
                         this.currentQuestion = null;
                         AudioManager.playRoundEnd();
                     }
                     if (update.event === 'GAME_FINISHED') {
+                        console.log('[WS] -> GAME_FINISHED, cargando resultados...');
                         this.getResults();
                         AudioManager.playCelebration();
                     }
@@ -407,43 +419,60 @@ function gameBoard() {
 
         async loadParticipants() {
             try {
+                console.log('[loadParticipants] Cargando participantes de gameId=' + this.gameId);
                 const res = await fetch('/api/games/' + this.gameId + '/participants');
                 if (res.ok) {
                     const participants = await res.json();
                     this.team1Participants = participants.filter(p => p.team === 1);
                     this.team2Participants = participants.filter(p => p.team === 2);
+                    console.log('[loadParticipants] T1=' + this.team1Participants.length + ', T2=' + this.team2Participants.length);
                     if (this.team1Participants.length > 0 && this.team2Participants.length > 0) {
                         this.setupComplete = true;
+                        console.log('[loadParticipants] Ambos equipos tienen miembros, setupComplete=true');
                     }
+                } else {
+                    console.error('[loadParticipants] HTTP error: ' + res.status);
                 }
             } catch (e) {
-                console.error('Error loading participants:', e);
+                console.error('[loadParticipants] Error:', e);
             }
         },
 
         async saveParticipants() {
+            console.log('[saveParticipants] INICIO - Guardando participantes...');
             this.loading = true;
             try {
                 const t1 = this.team1Members.filter(n => n.trim());
                 const t2 = this.team2Members.filter(n => n.trim());
+                console.log('[saveParticipants] T1 nombres:', t1, 'T2 nombres:', t2);
                 for (const name of t1) {
-                    await fetch('/api/games/' + this.gameId + '/participants', {
+                    const res = await fetch('/api/games/' + this.gameId + '/participants', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ name: name.trim(), team: 1 })
                     });
+                    console.log('[saveParticipants] POST participant T1: name=' + name.trim() + ', status=' + res.status);
                 }
                 for (const name of t2) {
-                    await fetch('/api/games/' + this.gameId + '/participants', {
+                    const res = await fetch('/api/games/' + this.gameId + '/participants', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ name: name.trim(), team: 2 })
                     });
+                    console.log('[saveParticipants] POST participant T2: name=' + name.trim() + ', status=' + res.status);
                 }
                 await this.loadParticipants();
                 this.setupComplete = true;
                 AudioManager.playClick();
+                console.log('[saveParticipants] setupComplete=true, status=' + this.status);
+                if (this.status === 'NOT_STARTED') {
+                    console.log('[saveParticipants] Status NOT_STARTED, auto-iniciando ronda...');
+                    await this.startRound();
+                } else {
+                    console.log('[saveParticipants] Status=' + this.status + ', NO se auto-inicia ronda');
+                }
             } catch (e) {
+                console.error('[saveParticipants] Error:', e);
                 alert('Error guardando participantes: ' + e.message);
             }
             this.loading = false;
@@ -452,17 +481,24 @@ function gameBoard() {
         getCurrentParticipantId() {
             const team = this.controllingTeam || 1;
             const list = team === 1 ? this.team1Participants : this.team2Participants;
-            if (list.length === 0) return 1;
+            if (list.length === 0) {
+                console.warn('[getCurrentParticipantId] Equipo ' + team + ' no tiene participantes, retornando 1 por defecto');
+                return 1;
+            }
             const idx = this.currentParticipantIndex[team] % list.length;
-            return list[idx].id;
+            const participant = list[idx];
+            console.log('[getCurrentParticipantId] team=' + team + ', index=' + idx + ', participantId=' + participant.id + ', name=' + participant.name);
+            return participant.id;
         },
 
         advanceParticipant() {
             const team = this.controllingTeam || 1;
             this.currentParticipantIndex[team]++;
+            console.log('[advanceParticipant] team=' + team + ', nuevo indice=' + this.currentParticipantIndex[team]);
         },
 
         async startRound() {
+            console.log('[startRound] INICIO - gameId=' + this.gameId + ', status=' + this.status);
             this.loading = true;
             this.showResults = false;
             this.currentQuestion = null;
@@ -470,122 +506,242 @@ function gameBoard() {
             this.stealAttempted = false;
             this.currentParticipantIndex = { 1: 0, 2: 0 };
             try {
+                console.log('[startRound] POST /api/games/' + this.gameId + '/rounds/start');
                 const res = await fetch('/api/games/' + this.gameId + '/rounds/start', { method: 'POST' });
+                console.log('[startRound] Response status: ' + res.status);
                 if (!res.ok) {
                     const err = await res.json();
+                    console.error('[startRound] Error del servidor:', err);
                     alert(err.message);
                     this.loading = false;
                     return;
                 }
                 const game = await res.json();
+                console.log('[startRound] Game recibido: status=' + game.status + ', roundStatus=' + game.currentRoundStatus + ', controllingTeam=' + game.controllingTeam + ', currentQuestionId=' + game.currentQuestionId);
                 this.updateGameState(game);
                 this.roundFinished = false;
                 AudioManager.playRoundStart();
+                console.log('[startRound] Cargando pregunta actual...');
                 await this.loadCurrentQuestion();
             } catch (e) {
+                console.error('[startRound] Error:', e);
                 alert('Error al iniciar ronda: ' + e.message);
             }
             this.loading = false;
+            console.log('[startRound] FIN');
         },
 
         async loadCurrentQuestion() {
             try {
+                console.log('[loadCurrentQuestion] INICIO - gameId=' + this.gameId);
                 const gameRes = await fetch('/api/games/' + this.gameId);
                 const game = await gameRes.json();
+                console.log('[loadCurrentQuestion] Game: currentQuestionId=' + game.currentQuestionId + ', status=' + game.status);
                 this.updateGameState(game);
                 if (game.currentQuestionId) {
+                    console.log('[loadCurrentQuestion] GET /api/games/' + this.gameId + '/questions/' + game.currentQuestionId);
                     const res = await fetch('/api/games/' + this.gameId + '/questions/' + game.currentQuestionId);
                     if (res.ok) {
                         this.currentQuestion = await res.json();
+                        console.log('[loadCurrentQuestion] Pregunta cargada: id=' + this.currentQuestion.id + ', text="' + this.currentQuestion.questionText + '", answers=' + (this.currentQuestion.answers ? this.currentQuestion.answers.length : 0));
+                    } else {
+                        console.error('[loadCurrentQuestion] HTTP error cargando pregunta: ' + res.status);
                     }
+                } else {
+                    console.warn('[loadCurrentQuestion] currentQuestionId es null/undefined, no se carga pregunta');
                 }
             } catch (e) {
-                console.error('Error loading question:', e);
+                console.error('[loadCurrentQuestion] Error:', e);
             }
         },
 
         async submitAnswer() {
             if (!this.answerText.trim()) return;
+            console.log('[submitAnswer] INICIO - answerText="' + this.answerText.trim() + '", turn=' + this.turn);
             this.loading = true;
             this.lastResult = null;
             try {
                 const participantId = this.getCurrentParticipantId();
+                const gameQuestionId = this.currentQuestion?.id || 1;
+                const payload = {
+                    participantId: participantId,
+                    gameQuestionId: gameQuestionId,
+                    answerText: this.answerText.trim(),
+                    roundMultiplier: this.currentMultiplier
+                };
+                console.log('[submitAnswer] POST payload:', JSON.stringify(payload));
                 const res = await fetch('/api/games/' + this.gameId + '/rounds/answer', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        participantId: participantId,
-                        gameQuestionId: this.currentQuestion?.id || 1,
-                        answerText: this.answerText.trim(),
-                        roundMultiplier: this.currentMultiplier
-                    })
+                    body: JSON.stringify(payload)
                 });
+                console.log('[submitAnswer] Response status: ' + res.status);
                 if (res.ok) {
                     const data = await res.json();
+                    console.log('[submitAnswer] Respuesta procesada. Answers:', data.answers?.map(a => a.text + '(' + (a.revealed ? 'revealed' : 'hidden') + ')'));
                     this.currentQuestion = data;
                     this.answerText = '';
                     if (this.turn === 'STEAL_ATTEMPT') {
                         this.stealAttempted = true;
+                        console.log('[submitAnswer] Steal attempt registrado');
                     } else {
                         this.advanceParticipant();
+                        console.log('[submitAnswer] Participante avanzado');
                     }
                     const gameRes = await fetch('/api/games/' + this.gameId);
                     const game = await gameRes.json();
                     this.updateGameState(game);
+                    console.log('[submitAnswer] Estado actualizado: turn=' + this.turn + ', t1=' + this.team1Score + ', t2=' + this.team2Score);
                 } else {
                     const err = await res.json();
+                    console.error('[submitAnswer] Error del servidor:', err);
                     this.lastResult = { correct: false, message: 'Error: ' + err.message };
                 }
             } catch (e) {
+                console.error('[submitAnswer] Error de conexion:', e);
                 this.lastResult = { correct: false, message: 'Error de conexión' };
             }
             this.loading = false;
         },
 
         async passTurn() {
+            console.log('[passTurn] INICIO - gameId=' + this.gameId);
             this.loading = true;
             try {
                 const res = await fetch('/api/games/' + this.gameId + '/rounds/pass', { method: 'POST' });
+                console.log('[passTurn] Response status: ' + res.status);
                 if (res.ok) {
                     const game = await res.json();
                     this.updateGameState(game);
+                    console.log('[passTurn] Turno pasado. roundStatus=' + this.turn + ', roundPoints=' + this.currentRoundPoints);
                     AudioManager.playStealAlert();
+                } else {
+                    const err = await res.json();
+                    console.error('[passTurn] Error:', err);
                 }
             } catch (e) {
+                console.error('[passTurn] Error de conexion:', e);
                 alert('Error: ' + e.message);
             }
             this.loading = false;
         },
 
+        async revealAnswer(answerId) {
+            console.log('[revealAnswer] INICIO - answerId=' + answerId + ', gameId=' + this.gameId + ', turn=' + this.turn);
+            if (this.loading) return;
+            this.loading = true;
+            this.lastResult = null;
+            try {
+                const res = await fetch('/api/games/' + this.gameId + '/rounds/reveal/' + answerId, { method: 'POST' });
+                console.log('[revealAnswer] Response status: ' + res.status);
+                if (res.ok) {
+                    const data = await res.json();
+                    console.log('[revealAnswer] Respuesta revelada. Answers:', data.answers?.map(a => a.text + '(' + (a.revealed ? 'revealed' : 'hidden') + ')'));
+                    this.currentQuestion = data;
+                    const revealedAnswer = data.answers?.find(a => a.id === answerId);
+                    if (revealedAnswer) {
+                        this.lastResult = { correct: true, message: '¡' + revealedAnswer.text + '! +' + (revealedAnswer.score * this.currentMultiplier) + ' pts' };
+                        AudioManager.playCorrect();
+                    }
+                    const gameRes = await fetch('/api/games/' + this.gameId);
+                    const game = await gameRes.json();
+                    this.updateGameState(game);
+                    console.log('[revealAnswer] Estado actualizado: turn=' + this.turn + ', t1=' + this.team1Score + ', t2=' + this.team2Score + ', roundPoints=' + this.currentRoundPoints);
+
+                    const allRevealed = data.answers && data.answers.every(a => a.revealed);
+                    if (allRevealed && this.turn !== 'FINISHED') {
+                        console.log('[revealAnswer] Todas las respuestas reveladas, terminando ronda automáticamente...');
+                        setTimeout(() => this.endRound(), 1200);
+                    }
+                } else {
+                    const err = await res.json();
+                    console.error('[revealAnswer] Error:', err);
+                    this.lastResult = { correct: false, message: 'Error: ' + err.message };
+                }
+            } catch (e) {
+                console.error('[revealAnswer] Error de conexion:', e);
+                this.lastResult = { correct: false, message: 'Error de conexión' };
+            }
+            this.loading = false;
+        },
+
+        async incrementError() {
+            console.log('[incrementError] INICIO - gameId=' + this.gameId + ', turn=' + this.turn);
+            if (this.loading) return;
+            this.loading = true;
+            this.lastResult = null;
+            try {
+                const res = await fetch('/api/games/' + this.gameId + '/rounds/error', { method: 'POST' });
+                console.log('[incrementError] Response status: ' + res.status);
+                if (res.ok) {
+                    const game = await res.json();
+                    this.updateGameState(game);
+                    AudioManager.playWrong();
+                    const errors = game.controllingTeam === 1 ? game.team1Errors : game.team2Errors;
+                    this.lastResult = { correct: false, message: '¡Error! ' + errors + '/3' };
+                    console.log('[incrementError] Error registrado: t1Errors=' + game.team1Errors + ', t2Errors=' + game.team2Errors + ', roundStatus=' + game.currentRoundStatus);
+                    if (game.currentRoundStatus === 'STEAL_ATTEMPT') {
+                        const allRevealed = this.currentQuestion?.answers && this.currentQuestion.answers.every(a => a.revealed);
+                        if (allRevealed) {
+                            console.log('[incrementError] Todas las respuestas reveladas, terminando ronda automáticamente...');
+                            this.lastResult = { correct: false, message: '¡3 errores! Todas las respuestas reveladas — terminando ronda' };
+                            await this.endRound();
+                        } else {
+                            AudioManager.playStealAlert();
+                            this.lastResult = null;
+                        }
+                    }
+                } else {
+                    const err = await res.json();
+                    console.error('[incrementError] Error:', err);
+                    this.lastResult = { correct: false, message: 'Error: ' + err.message };
+                }
+            } catch (e) {
+                console.error('[incrementError] Error de conexion:', e);
+                this.lastResult = { correct: false, message: 'Error de conexión' };
+            }
+            this.loading = false;
+        },
+
         async endRound() {
+            console.log('[endRound] INICIO - gameId=' + this.gameId);
             this.loading = true;
             try {
                 const res = await fetch('/api/games/' + this.gameId + '/rounds/end', { method: 'POST' });
+                console.log('[endRound] Response status: ' + res.status);
                 if (res.ok) {
                     const game = await res.json();
                     this.updateGameState(game);
                     this.roundFinished = true;
                     this.currentQuestion = null;
+                    console.log('[endRound] Ronda terminada. t1=' + this.team1Score + ', t2=' + this.team2Score + ', status=' + this.status);
                     AudioManager.playRoundEnd();
+                } else {
+                    const err = await res.json();
+                    console.error('[endRound] Error:', err);
                 }
             } catch (e) {
+                console.error('[endRound] Error de conexion:', e);
                 alert('Error: ' + e.message);
             }
             this.loading = false;
         },
 
         async getResults() {
+            console.log('[getResults] INICIO - gameId=' + this.gameId);
             this.loading = true;
             this.showResults = true;
             try {
                 const res = await fetch('/api/games/' + this.gameId + '/results');
                 const data = await res.json();
+                console.log('[getResults] Resultados:', JSON.stringify(data));
                 this.team1Score = data.team1Score;
                 this.team2Score = data.team2Score;
                 this.winner = data.winner;
                 AudioManager.playCelebration();
                 this.$nextTick(() => this.createConfetti());
             } catch (e) {
+                console.error('[getResults] Error:', e);
                 alert('Error: ' + e.message);
             }
             this.loading = false;
@@ -614,6 +770,7 @@ function gameBoard() {
         },
 
         updateGameState(game) {
+            console.log('[updateGameState] gameId=' + game.id + ', status=' + game.status + ', roundStatus=' + game.currentRoundStatus + ', controllingTeam=' + game.controllingTeam + ', t1=' + game.team1Score + ', t2=' + game.team2Score + ', roundPoints=' + game.currentRoundPoints + ', currentQuestionId=' + game.currentQuestionId);
             this.team1Score = game.team1Score;
             this.team2Score = game.team2Score;
             this.team1Errors = game.team1Errors;

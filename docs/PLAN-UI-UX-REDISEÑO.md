@@ -1,7 +1,7 @@
 # Plan: UI/UX Rediseño Completo — 100 Mexicanos Dijeron
 
 > **Fecha:** Julio 2026
-> **Estado:** Pendiente de implementación
+> **Estado:** Completado
 > **Modelo:** Host-control (una persona administra el juego desde una sola pantalla)
 
 ---
@@ -50,7 +50,7 @@ Rediseñar la interfaz del juego con estética de programa de televisión, contr
 
 ---
 
-## FASE 0: Correcciones Backend Críticas
+## FASE 0: Correcciones Backend Críticas ✅ COMPLETADO
 
 ### 0.1 — `GameService.java`: Fix `endRound()`
 
@@ -184,8 +184,8 @@ public ResponseEntity<GameQuestionDTO> revealAnswer(
 |--------|---------|-------------------|
 | `NOT_STARTED` + `!setupComplete` | Setup de equipos | "Agregar miembros" + "Iniciar Juego" |
 | `NOT_STARTED` + `setupComplete` | Pantalla de bienvenida | "Iniciar Ronda" |
-| `IN_PROGRESS` + `TURN_PLAYER1/2` | Game board + input | Input + "Responder" + "Pasar Turno" |
-| `IN_PROGRESS` + `STEAL_ATTEMPT` | Game board + alerta robo | Input + "Responder" |
+| `IN_PROGRESS` + `TURN_PLAYER1/2` | Game board + input | Input + "Responder" + "Pasar Turno" + "Error" |
+| `IN_PROGRESS` + `STEAL_ATTEMPT` | Game board + alerta robo | Respuestas clickeables "CLIC PARA ROBAR" + "Terminar Ronda" |
 | `FINISHED` (ronda) | Game board + "Ronda terminada" | "Siguiente Ronda" |
 | `FINISHED` (juego) | Pantalla resultados | "Volver al Dashboard" |
 
@@ -733,12 +733,14 @@ public String playGame(@PathVariable Long id,
 
 | Archivo | Cambios |
 |---------|---------|
-| `GameService.java` | Fix endRound, passTurn, startNextRound; enrich mapToGameDTO |
+| `GameService.java` | Fix endRound, passTurn, startNextRound; enrich mapToGameDTO; revealAnswer con puntos; incrementError |
 | `GameDTO.java` | Agregar winner, gameQuestionText, currentAnswers |
-| `GameController.java` | Agregar endpoint reveal |
+| `GameController.java` | Agregar endpoints reveal, error |
 | `HomeController.java` | Agregar param `results` a `/jugar/{id}` |
-| `play.html` | **Reescritura completa** — Game board estilo TV |
-| `dashboard.html` | Rediseño con cards |
+| `WebSocketConfig.java` | Fix CORS con setAllowedOriginPatterns |
+| `WebSocketEventListener.java` | Logging completo |
+| `play.html` | **Reescritura completa** — Game board estilo TV host-controlled |
+| `dashboard.html` | Cards con separación activos/historial |
 | `style.css` | **Reescritura completa** — Premium TV show |
 | `history.html` | Ajustar formato de fecha |
 
@@ -757,17 +759,23 @@ public String playGame(@PathVariable Long id,
 | `admin/*.html` | CRUD funcional |
 | `stats.html` | Funcional |
 | `SecurityConfig.java` | Sin cambios |
-| `WebSocketConfig.java` | Sin cambios |
-| `WebSocketEventListener.java` | Sin cambios |
 
 ---
 
-## Orden de Implementación
+## Orden de Implementación ✅ COMPLETADO
 
-1. **FASE 0** — Backend fixes (GameService, GameDTO) → compilar y testear
-2. **FASE 2** — CSS premium (style.css) → base visual
-3. **FASE 3** — AudioManager (audio.js) → sonidos
-4. **FASE 1** — play.html reescritura → game board host-controlled
-5. **FASE 4** — Resultados → pantalla de cierre
-6. **FASE 5** — Dashboard rediseñado → cards
-7. **FASE 6** — Redirecciones → HomeController + rutas
+1. **FASE 0** — Backend fixes (GameService, GameDTO) → compilar y testear ✅
+2. **FASE 2** — CSS premium (style.css) → base visual ✅
+3. **FASE 3** — AudioManager (audio.js) → sonidos ✅
+4. **FASE 1** — play.html reescritura → game board host-controlled ✅
+5. **FASE 4** — Resultados → pantalla de cierre ✅
+6. **FASE 5** — Dashboard rediseñado → cards ✅
+7. **FASE 6** — Redirecciones → HomeController + rutas ✅
+
+### Features Adicionales Implementadas
+- Mecánica de robo (STEAL_ATTEMPT) con equipo contrario robando puntos
+- Botón ERROR/STRIKE con contador X/3
+- Auto-endRound cuando todas las respuestas se revelan
+- Logging completo (SLF4J + console.log)
+- CORS WebSocket fix
+- Dashboard con separación de juegos activos/historial

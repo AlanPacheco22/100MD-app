@@ -28,7 +28,7 @@ Construir una API REST robusta y escalable que gestione el ciclo de vida complet
 
 ### 3. Sistema de Rondas y Puntuación
 - Implementar el flujo de rondas dentro de una partida.
-- **Regla de errores:** El equipo 1 puede fallar hasta 3 respuestas por ronda; el equipo 2 puede fallar hasta 1.
+- **Regla de errores:** Cada equipo puede fallar hasta 3 respuestas por ronda. Al llegar a 3 errores, el equipo contrario tiene UNA oportunidad de robar todos los puntos acumulados revelando una respuesta oculta. Si aciertan, roban los puntos; si fallan o el host selecciona "Terminar Ronda", los puntos se quedan con el equipo controlador.
 - **Puntuación:** Cada acierto suma el puntaje de la respuesta (porcentaje de encuesta) multiplicado por un factor (`multiplier`).
 - Controlar la transición de turnos entre equipos y el fin de ronda.
 
@@ -59,16 +59,21 @@ Construir una API REST robusta y escalable que gestione el ciclo de vida complet
 - [x] Creación de partidas con selección aleatoria de preguntas
 - [x] CRUD de preguntas y respuestas
 - [x] Registro de participantes por partida
-- [x] Envío de respuestas y validación contra la base de datos
+- [x] Host-control: host revela respuestas haciendo clic (sin input de texto)
 - [x] Cálculo de puntaje por respuesta correcta (con multiplicador)
-- [x] Control de errores por equipo (3 para equipo 1, 1 para equipo 2)
+- [x] Control de errores por equipo (3 por equipo, transición a STEAL_ATTEMPT)
+- [x] Mecánica de robo: equipo contrario puede robar puntos al llegar a 3 errores
+- [x] Auto-endRound cuando todas las respuestas se revelan
 - [x] Finalización de rondas y partidas
-- [x] Configuración de WebSocket con STOMP y SockJS
+- [x] WebSocket con STOMP y SockJS (broadcast en tiempo real)
+- [x] UI premium estilo TV show (Poppins + Orbitron, colores MX, confetti, glow)
+- [x] Sonidos con Web Audio API (correcto, incorrecto, robo, celebración, etc.)
+- [x] Dashboard con cards y separación de juegos activos/historial
 - [x] Documentación Swagger/OpenAPI
+- [x] Logging completo (SLF4J backend + console.log frontend)
 
 ## Funcionalidades Planeadas / En Desarrollo
 
-- [ ] Transmisión completa de actualizaciones vía WebSocket
 - [ ] Sistema de temporizador por turno
 - [ ] Autenticación y autorización
 - [ ] Panel administrativo web

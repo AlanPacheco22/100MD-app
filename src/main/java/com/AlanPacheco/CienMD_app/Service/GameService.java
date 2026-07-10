@@ -28,6 +28,8 @@ import com.AlanPacheco.CienMD_app.Repository.GameRoundRepository;
 import com.AlanPacheco.CienMD_app.Repository.ParticipantRepository;
 import com.AlanPacheco.CienMD_app.Repository.QuestionRepository;
 import com.AlanPacheco.CienMD_app.Config.GameEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +44,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class GameService {
+
+    private static final Logger log = LoggerFactory.getLogger(GameService.class);
 
     private final GameRepository gameRepository;
     private final GameRoundRepository gameRoundRepository;
@@ -66,11 +70,11 @@ public class GameService {
 
     @Transactional
     public GameDTO createNewGame(CreateGameDTO config) {
-        System.out.println("DEBUG: createNewGame() - Iniciando creacion de nueva partida");
+        log.info("[createNewGame] Iniciando creacion de nueva partida. totalRounds={}, teamSize={}", config.getTotalRounds(), config.getTeamSize());
         long questionCount = questionRepository.count();
-        System.out.println("DEBUG: createNewGame() - Total preguntas disponibles: " + questionCount);
+        log.info("[createNewGame] Preguntas disponibles en BD: {}", questionCount);
         if (questionCount < config.getTotalRounds()) {
-            System.out.println("DEBUG: createNewGame() - ERROR: preguntas insuficientes: " + questionCount);
+            log.warn("[createNewGame] Preguntas insuficientes: hay {}, se necesitan {}", questionCount, config.getTotalRounds());
             throw new InsufficientQuestionsException(
                     "Se necesitan al menos " + config.getTotalRounds() + " preguntas. Hay: " + questionCount);
         }
@@ -95,12 +99,11 @@ public class GameService {
         game.setCurrentMultiplier(multipliers[0]);
         game.setControllingTeam(null);
         game = gameRepository.save(game);
-        System.out.println("DEBUG: createNewGame() - Partida creada con ID: " + game.getId());
+        log.info("[createNewGame] Partida guardada con ID={}, status={}", game.getId(), game.getStatus());
 
         List<Question> allQuestions = questionRepository.findAll();
         Collections.shuffle(allQuestions);
         List<Question> selected = allQuestions.subList(0, config.getTotalRounds());
-        System.out.println("DEBUG: createNewGame() - Seleccionadas " + config.getTotalRounds() + " preguntas para la partida");
 
         List<GameQuestion> gameQuestions = new ArrayList<>();
         for (int i = 0; i < selected.size(); i++) {
@@ -115,39 +118,55 @@ public class GameService {
 
         game = gameRepository.save(game);
         eventPublisher.publishEvent(new GameEvent("GAME_CREATED", game.getId()));
-        System.out.println("DEBUG: createNewGame() - Partida " + game.getId() + " creada exitosamente");
+        log.info("[createNewGame] Partida {} creada exitosamente con {} preguntas asignadas", game.getId(), gameQuestions.size());
         return mapToGameDTO(game);
     }
 
     public GameDTO getGameById(Long gameId) {
+        log.debug("[getGameById] gameId={}", gameId);
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
+        log.debug("[getGameById] gameId={}, status={}, roundStatus={}, controllingTeam={}, currentGameQuestionId={}",
+                gameId, game.getStatus(), game.getCurrentRoundStatus(), game.getControllingTeam(),
+                game.getCurrentGameQuestion() != null ? game.getCurrentGameQuestion().getId() : "null");
         return mapToGameDTO(game);
     }
 
     public GameQuestionDTO getGameQuestion(Long gameId, Long questionId) {
+        log.info("[getGameQuestion] gameId={}, questionId={}", gameId, questionId);
         GameQuestion gameQuestion = gameQuestionRepository.findById(questionId)
                 .orElseThrow(() -> new GameQuestionNotFoundException("Pregunta no encontrada: " + questionId));
-        return mapToGameQuestionDTO(gameQuestion, gameId);
+        GameQuestionDTO dto = mapToGameQuestionDTO(gameQuestion, gameId);
+        log.info("[getGameQuestion] Pregunta cargada: text='{}', answers={}", dto.getQuestionText(), dto.getAnswers() != null ? dto.getAnswers().size() : 0);
+        return dto;
     }
 
     @Transactional
     public GameDTO startNextRound(Long gameId) {
+        log.info("[startNextRound] INICIO - gameId={}", gameId);
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
+        log.info("[startNextRound] Juego actual: status={}, roundStatus={}, roundsPlayed={}, totalRounds={}, currentGameQuestionId={}, controllingTeam={}",
+                game.getStatus(), game.getCurrentRoundStatus(), game.getRoundsPlayed(), game.getTotalRounds(),
+                game.getCurrentGameQuestion() != null ? game.getCurrentGameQuestion().getId() : "null",
+                game.getControllingTeam());
 
         if (game.getStatus() == GameStatus.FINISHED) {
+            log.warn("[startNextRound] Partida ya terminada, gameId={}", gameId);
             throw new GameAlreadyFinishedException("La partida ya terminó");
         }
 
         if (game.getCurrentRoundStatus() != GameRoundStatus.NOT_STARTED &&
                 game.getCurrentRoundStatus() != GameRoundStatus.FINISHED) {
+            log.warn("[startNextRound] Ronda actual no ha terminado: roundStatus={}, gameId={}", game.getCurrentRoundStatus(), gameId);
             throw new IllegalStateException("La ronda actual no ha terminado");
         }
 
         List<GameQuestion> gameQuestions = game.getGameQuestions();
+        log.info("[startNextRound] Total gameQuestions: {}", gameQuestions.size());
 
         if (game.getCurrentGameQuestion() == null) {
+            log.info("[startNextRound] currentGameQuestion es null, asignando primera pregunta (index=0)");
             game.setCurrentGameQuestion(gameQuestions.get(0));
         } else {
             int currentIndex = -1;
@@ -157,9 +176,12 @@ public class GameService {
                     break;
                 }
             }
+            log.info("[startNextRound] currentIndex={}, avanzando a siguiente pregunta", currentIndex);
             if (currentIndex + 1 < gameQuestions.size()) {
                 game.setCurrentGameQuestion(gameQuestions.get(currentIndex + 1));
+                log.info("[startNextRound] Nueva pregunta asignada: gameQuestionId={}", gameQuestions.get(currentIndex + 1).getId());
             } else {
+                log.info("[startNextRound] No hay mas preguntas, terminando partida gameId={}", gameId);
                 game.setStatus(GameStatus.FINISHED);
                 game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
                 gameRepository.save(game);
@@ -187,30 +209,43 @@ public class GameService {
         game.setCurrentRoundPoints(0);
         gameRepository.save(game);
         eventPublisher.publishEvent(new GameEvent("ROUND_STARTED", gameId));
-        System.out.println("DEBUG: startNextRound() - Ronda " + newRound + " iniciada. Equipo control: " + controllingTeam + ", Multiplicador: " + game.getCurrentMultiplier());
+        log.info("[startNextRound] Ronda {} iniciada. controllingTeam={}, multiplier={}, status={}, roundStatus={}, questionId={}",
+                newRound, controllingTeam, game.getCurrentMultiplier(), game.getStatus(), game.getCurrentRoundStatus(),
+                game.getCurrentGameQuestion() != null ? game.getCurrentGameQuestion().getId() : "null");
 
         return mapToGameDTO(game);
     }
 
     @Transactional
     public GameQuestionDTO submitAnswer(Long gameId, RoundDTO roundDTO) {
+        log.info("[submitAnswer] INICIO - gameId={}, participantId={}, gameQuestionId={}, answerText='{}', multiplier={}",
+                gameId, roundDTO.getParticipantId(), roundDTO.getGameQuestionId(), roundDTO.getAnswerText(), roundDTO.getRoundMultiplier());
+
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
+        log.info("[submitAnswer] Game state: status={}, roundStatus={}, controllingTeam={}, team1Score={}, team2Score={}, team1Errors={}, team2Errors={}, roundPoints={}",
+                game.getStatus(), game.getCurrentRoundStatus(), game.getControllingTeam(),
+                game.getTeam1Score(), game.getTeam2Score(), game.getTeam1Errors(), game.getTeam2Errors(), game.getCurrentRoundPoints());
 
         if (game.getStatus() == GameStatus.FINISHED) {
+            log.warn("[submitAnswer] Partida ya terminada, gameId={}", gameId);
             throw new GameAlreadyFinishedException("La partida ya terminó");
         }
 
         Participant participant = participantRepository.findById(roundDTO.getParticipantId())
                 .orElseThrow(() -> new ParticipantNotFoundException(
                         "Participante no encontrado: " + roundDTO.getParticipantId()));
+        log.info("[submitAnswer] Participante encontrado: id={}, name='{}', team={}", participant.getId(), participant.getName(), participant.getTeam());
 
         GameQuestion gameQuestion = gameQuestionRepository.findById(roundDTO.getGameQuestionId())
                 .orElseThrow(() -> new GameQuestionNotFoundException(
                         "Pregunta no encontrada en la partida"));
+        log.info("[submitAnswer] GameQuestion encontrada: id={}, questionText='{}'", gameQuestion.getId(), gameQuestion.getQuestion().getText());
 
         Answer answer = answerRepository.findByQuestionIdAndTextIgnoreCase(
                 gameQuestion.getQuestion().getId(), roundDTO.getAnswerText());
+        log.info("[submitAnswer] Busqueda de respuesta en BD: questionId={}, searchText='{}', encontrada={}",
+                gameQuestion.getQuestion().getId(), roundDTO.getAnswerText(), answer != null);
 
         int multiplier = roundDTO.getRoundMultiplier();
         if (multiplier <= 0) {
@@ -228,14 +263,21 @@ public class GameService {
             int points = answer.getScore() * multiplier;
             round.setScore(points);
             round.setCorrect(true);
+            log.info("[submitAnswer] RESPUESTA CORRECTA! answerText='{}', baseScore={}, multiplier={}, totalPoints={}",
+                    answer.getText(), answer.getScore(), multiplier, points);
             handleCorrectAnswer(game, points, participant.getTeam());
             eventPublisher.publishEvent(new GameEvent("ANSWER_CORRECT", gameId));
         } else {
             round.setScore(0);
             round.setCorrect(false);
+            log.info("[submitAnswer] RESPUESTA INCORRECTA: '{}'", roundDTO.getAnswerText());
             handleIncorrectAnswer(game, participant.getTeam());
             eventPublisher.publishEvent(new GameEvent("ANSWER_WRONG", gameId));
         }
+
+        log.info("[submitAnswer] Estado DESPUES de respuesta: team1Score={}, team2Score={}, team1Errors={}, team2Errors={}, roundStatus={}, roundPoints={}",
+                game.getTeam1Score(), game.getTeam2Score(), game.getTeam1Errors(), game.getTeam2Errors(),
+                game.getCurrentRoundStatus(), game.getCurrentRoundPoints());
 
         gameRoundRepository.save(round);
         gameRepository.save(game);
@@ -244,103 +286,234 @@ public class GameService {
     }
 
     private void handleCorrectAnswer(Game game, int points, int team) {
+        log.info("[handleCorrectAnswer] team={}, points={}, roundStatus={}, roundPoints={}", team, points, game.getCurrentRoundStatus(), game.getCurrentRoundPoints());
         if (game.getCurrentRoundStatus() == GameRoundStatus.STEAL_ATTEMPT) {
             if (team == 2) {
                 game.setTeam2Score(game.getTeam2Score() + game.getCurrentRoundPoints() + points);
                 game.setCurrentRoundPoints(0);
                 game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
+                log.info("[handleCorrectAnswer] Robo exitoso! Equipo {} roba {} puntos. Nuevo score={}", team, game.getCurrentRoundPoints() + points, game.getTeam2Score());
             } else {
                 game.setCurrentRoundPoints(game.getCurrentRoundPoints() + points);
+                log.info("[handleCorrectAnswer] Equipo {} suma {} puntos en ronda. roundPoints={}", team, points, game.getCurrentRoundPoints());
             }
         } else {
             game.setCurrentRoundPoints(game.getCurrentRoundPoints() + points);
+            log.info("[handleCorrectAnswer] Equipo {} suma {} puntos en ronda. roundPoints={}", team, points, game.getCurrentRoundPoints());
         }
     }
 
     private void handleIncorrectAnswer(Game game, int team) {
+        log.info("[handleIncorrectAnswer] team={}, roundStatus={}, team1Errors={}, team2Errors={}", team, game.getCurrentRoundStatus(), game.getTeam1Errors(), game.getTeam2Errors());
         if (game.getCurrentRoundStatus() == GameRoundStatus.STEAL_ATTEMPT) {
             if (team == 1) {
                 game.setTeam2Score(game.getTeam2Score() + game.getCurrentRoundPoints());
+                log.info("[handleIncorrectAnswer] Robo fallido! Equipo 2 recibe {} puntos. score={}", game.getCurrentRoundPoints(), game.getTeam2Score());
             } else {
                 game.setTeam1Score(game.getTeam1Score() + game.getCurrentRoundPoints());
+                log.info("[handleIncorrectAnswer] Robo fallido! Equipo 1 recibe {} puntos. score={}", game.getCurrentRoundPoints(), game.getTeam1Score());
             }
             game.setCurrentRoundPoints(0);
             game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
         } else if (game.getCurrentRoundStatus() == GameRoundStatus.TURN_PLAYER1) {
             game.setTeam1Errors(game.getTeam1Errors() + 1);
+            log.info("[handleIncorrectAnswer] Equipo 1 error #{}", game.getTeam1Errors());
             if (game.getTeam1Errors() >= 3) {
                 game.setCurrentRoundStatus(GameRoundStatus.STEAL_ATTEMPT);
+                log.info("[handleIncorrectAnswer] Equipo 1 acumula 3 errores -> STEAL_ATTEMPT");
             }
         } else if (game.getCurrentRoundStatus() == GameRoundStatus.TURN_PLAYER2) {
             game.setTeam2Errors(game.getTeam2Errors() + 1);
+            log.info("[handleIncorrectAnswer] Equipo 2 error #{}", game.getTeam2Errors());
             if (game.getTeam2Errors() >= 3) {
                 game.setCurrentRoundStatus(GameRoundStatus.STEAL_ATTEMPT);
+                log.info("[handleIncorrectAnswer] Equipo 2 acumula 3 errores -> STEAL_ATTEMPT");
             }
         }
     }
 
     @Transactional
     public GameDTO passTurn(Long gameId) {
+        log.info("[passTurn] INICIO - gameId={}", gameId);
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
+        log.info("[passTurn] Estado actual: roundStatus={}, controllingTeam={}", game.getCurrentRoundStatus(), game.getControllingTeam());
 
         if (game.getCurrentRoundStatus() != GameRoundStatus.TURN_PLAYER1 &&
                 game.getCurrentRoundStatus() != GameRoundStatus.TURN_PLAYER2) {
+            log.warn("[passTurn] No se puede pasar turno desde roundStatus={}", game.getCurrentRoundStatus());
             throw new IllegalStateException("Solo se puede pasar el turno durante un turno activo");
         }
 
         game.setCurrentRoundStatus(GameRoundStatus.STEAL_ATTEMPT);
         gameRepository.save(game);
         eventPublisher.publishEvent(new GameEvent("TURN_PASSED", gameId));
+        log.info("[passTurn] Turno pasado -> STEAL_ATTEMPT. Equipo {} puede robar {} puntos", game.getControllingTeam() == 1 ? 2 : 1, game.getCurrentRoundPoints());
+        return mapToGameDTO(game);
+    }
+
+    @Transactional
+    public GameDTO incrementError(Long gameId) {
+        log.info("[incrementError] INICIO - gameId={}", gameId);
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
+        log.info("[incrementError] Estado actual: roundStatus={}, controllingTeam={}, t1Errors={}, t2Errors={}",
+                game.getCurrentRoundStatus(), game.getControllingTeam(), game.getTeam1Errors(), game.getTeam2Errors());
+
+        if (game.getCurrentRoundStatus() != GameRoundStatus.TURN_PLAYER1 &&
+                game.getCurrentRoundStatus() != GameRoundStatus.TURN_PLAYER2) {
+            log.warn("[incrementError] No se puede registrar error desde roundStatus={}", game.getCurrentRoundStatus());
+            throw new IllegalStateException("Solo se puede registrar error durante un turno activo");
+        }
+
+        if (game.getCurrentRoundStatus() == GameRoundStatus.TURN_PLAYER1) {
+            game.setTeam1Errors(game.getTeam1Errors() + 1);
+            log.info("[incrementError] Equipo 1 error #{}/3", game.getTeam1Errors());
+            if (game.getTeam1Errors() >= 3) {
+                game.setCurrentRoundStatus(GameRoundStatus.STEAL_ATTEMPT);
+                log.info("[incrementError] Equipo 1 acumula 3 errores -> STEAL_ATTEMPT");
+                eventPublisher.publishEvent(new GameEvent("STEAL_ATTEMPT", gameId));
+            }
+        } else if (game.getCurrentRoundStatus() == GameRoundStatus.TURN_PLAYER2) {
+            game.setTeam2Errors(game.getTeam2Errors() + 1);
+            log.info("[incrementError] Equipo 2 error #{}/3", game.getTeam2Errors());
+            if (game.getTeam2Errors() >= 3) {
+                game.setCurrentRoundStatus(GameRoundStatus.STEAL_ATTEMPT);
+                log.info("[incrementError] Equipo 2 acumula 3 errores -> STEAL_ATTEMPT");
+                eventPublisher.publishEvent(new GameEvent("STEAL_ATTEMPT", gameId));
+            }
+        }
+
+        gameRepository.save(game);
+        if (game.getCurrentRoundStatus() != GameRoundStatus.STEAL_ATTEMPT) {
+            eventPublisher.publishEvent(new GameEvent("ANSWER_WRONG", gameId));
+        }
+        log.info("[incrementError] FIN - t1Errors={}, t2Errors={}, roundStatus={}", game.getTeam1Errors(), game.getTeam2Errors(), game.getCurrentRoundStatus());
         return mapToGameDTO(game);
     }
 
     @Transactional
     public GameDTO endRound(Long gameId) {
+        log.info("[endRound] INICIO - gameId={}", gameId);
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
+        log.info("[endRound] Estado actual: roundStatus={}, controllingTeam={}, roundPoints={}, team1Score={}, team2Score={}",
+                game.getCurrentRoundStatus(), game.getControllingTeam(), game.getCurrentRoundPoints(), game.getTeam1Score(), game.getTeam2Score());
 
         if (game.getCurrentRoundStatus() == GameRoundStatus.FINISHED) {
+            log.warn("[endRound] Ronda ya terminada, gameId={}", gameId);
             throw new IllegalStateException("La ronda ya terminó");
         }
 
         if (game.getControllingTeam() != null) {
             if (game.getControllingTeam() == 1) {
                 game.setTeam1Score(game.getTeam1Score() + game.getCurrentRoundPoints());
+                log.info("[endRound] Equipo 1 recibe {} puntos. Nuevo score={}", game.getCurrentRoundPoints(), game.getTeam1Score());
             } else {
                 game.setTeam2Score(game.getTeam2Score() + game.getCurrentRoundPoints());
+                log.info("[endRound] Equipo 2 recibe {} puntos. Nuevo score={}", game.getCurrentRoundPoints(), game.getTeam2Score());
             }
+        } else {
+            log.warn("[endRound] controllingTeam es null! No se asignan puntos de ronda. roundPoints={}", game.getCurrentRoundPoints());
         }
 
         game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
         game.setCurrentRoundPoints(0);
         gameRepository.save(game);
         eventPublisher.publishEvent(new GameEvent("ROUND_ENDED", gameId));
+        log.info("[endRound] Ronda finalizada. team1Score={}, team2Score={}", game.getTeam1Score(), game.getTeam2Score());
 
         return mapToGameDTO(game);
     }
 
     @Transactional
     public GameQuestionDTO revealAnswer(Long gameId, Long answerId) {
+        log.info("[revealAnswer] INICIO - gameId={}, answerId={}", gameId, answerId);
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
+        log.info("[revealAnswer] Game state: status={}, roundStatus={}, controllingTeam={}, roundPoints={}, t1={}, t2={}",
+                game.getStatus(), game.getCurrentRoundStatus(), game.getControllingTeam(), game.getCurrentRoundPoints(), game.getTeam1Score(), game.getTeam2Score());
 
         if (game.getCurrentGameQuestion() == null) {
+            log.warn("[revealAnswer] No hay pregunta activa en gameId={}", gameId);
             throw new IllegalStateException("No hay pregunta activa en esta partida");
         }
 
         Answer answer = answerRepository.findById(answerId)
                 .orElseThrow(() -> new IllegalArgumentException("Respuesta no encontrada: " + answerId));
 
-        GameQuestion gameQuestion = game.getCurrentGameQuestion();
-        GameQuestionDTO dto = mapToGameQuestionDTO(gameQuestion, gameId);
+        log.info("[revealAnswer] Respuesta encontrada: id={}, text='{}', score={}", answer.getId(), answer.getText(), answer.getScore());
 
-        for (AnswerDTO ans : dto.getAnswers()) {
-            if (ans.getId().equals(answerId)) {
-                ans.setRevealed(true);
-            }
+        GameQuestion gameQuestion = game.getCurrentGameQuestion();
+
+        List<GameRound> existingRounds = gameRoundRepository.findByGameIdAndGameQuestionId(gameId, gameQuestion.getId());
+        boolean alreadyRevealed = existingRounds.stream()
+                .filter(GameRound::isCorrect)
+                .anyMatch(r -> r.getAnswerText().equalsIgnoreCase(answer.getText()));
+        if (alreadyRevealed) {
+            log.warn("[revealAnswer] Respuesta '{}' ya fue revelada previamente", answer.getText());
+            GameQuestionDTO dto = mapToGameQuestionDTO(gameQuestion, gameId);
+            return dto;
         }
 
+        int multiplier = game.getCurrentMultiplier();
+        int points = answer.getScore() * multiplier;
+        log.info("[revealAnswer] Puntos calculados: baseScore={}, multiplier={}, totalPoints={}", answer.getScore(), multiplier, points);
+
+        GameRound round = new GameRound();
+        round.setGame(game);
+        round.setGameQuestion(gameQuestion);
+        round.setAnswerText(answer.getText());
+        round.setScore(points);
+        round.setCorrect(true);
+        round.setMultiplier(multiplier);
+
+        if (game.getCurrentRoundStatus() == GameRoundStatus.STEAL_ATTEMPT) {
+            int stealingTeam = (game.getControllingTeam() == 1) ? 2 : 1;
+            int totalStolen = game.getCurrentRoundPoints() + points;
+            log.info("[revealAnswer] STEAL_ATTEMPT! Equipo {} roba {} puntos (acumulados {}) + {} (nueva respuesta)",
+                    stealingTeam, totalStolen, game.getCurrentRoundPoints(), points);
+
+            Participant stealParticipant = participantRepository.findByGameId(gameId).stream()
+                    .filter(p -> p.getTeam() == stealingTeam)
+                    .findFirst().orElse(null);
+            if (stealParticipant != null) {
+                round.setParticipant(stealParticipant);
+            }
+            gameRoundRepository.save(round);
+
+            if (stealingTeam == 1) {
+                game.setTeam1Score(game.getTeam1Score() + totalStolen);
+            } else {
+                game.setTeam2Score(game.getTeam2Score() + totalStolen);
+            }
+            game.setCurrentRoundPoints(0);
+            game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
+            gameRepository.save(game);
+            eventPublisher.publishEvent(new GameEvent("ANSWER_CORRECT", gameId));
+            eventPublisher.publishEvent(new GameEvent("ROUND_ENDED", gameId));
+
+            GameQuestionDTO dto = mapToGameQuestionDTO(gameQuestion, gameId);
+            log.info("[revealAnswer] ROBO EXITOSO! Equipo {} robó {} puntos. t1={}, t2={}", stealingTeam, totalStolen, game.getTeam1Score(), game.getTeam2Score());
+            return dto;
+        }
+
+        Participant controllerParticipant = participantRepository.findByGameId(gameId).stream()
+                .filter(p -> p.getTeam() == game.getControllingTeam())
+                .findFirst().orElse(null);
+        if (controllerParticipant != null) {
+            round.setParticipant(controllerParticipant);
+        }
+        gameRoundRepository.save(round);
+
+        game.setCurrentRoundPoints(game.getCurrentRoundPoints() + points);
+        log.info("[revealAnswer] Puntos de ronda actualizados: roundPoints={}", game.getCurrentRoundPoints());
+        gameRepository.save(game);
+
+        eventPublisher.publishEvent(new GameEvent("ANSWER_CORRECT", gameId));
+
+        GameQuestionDTO dto = mapToGameQuestionDTO(gameQuestion, gameId);
+        log.info("[revealAnswer] FIN - answerId={}, text='{}', revealed=true, points={}", answerId, answer.getText(), points);
         return dto;
     }
 
@@ -386,10 +559,12 @@ public class GameService {
 
     @Transactional
     public ParticipantDTO addParticipant(Long gameId, CreateParticipantDTO dto) {
+        log.info("[addParticipant] gameId={}, name='{}', team={}", gameId, dto.getName(), dto.getTeam());
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
 
         if (game.getStatus() != GameStatus.NOT_STARTED) {
+            log.warn("[addParticipant] No se pueden agregar participantes a partida con status={}", game.getStatus());
             throw new IllegalStateException("No se pueden agregar participantes a una partida ya iniciada");
         }
 
@@ -397,6 +572,7 @@ public class GameService {
                 .filter(p -> p.getTeam() == dto.getTeam())
                 .count();
         if (teamCount >= game.getTeamSize()) {
+            log.warn("[addParticipant] Equipo {} ya tiene {} miembros (maximo {})", dto.getTeam(), teamCount, game.getTeamSize());
             throw new IllegalStateException("El equipo " + dto.getTeam() + " ya tiene " + game.getTeamSize() + " miembros (máximo)");
         }
 
@@ -406,6 +582,7 @@ public class GameService {
         participant.setTeam(dto.getTeam());
         participant.setMemberOrder((int) teamCount);
         participant = participantRepository.save(participant);
+        log.info("[addParticipant] Participante creado: id={}, name='{}', team={}, order={}", participant.getId(), participant.getName(), participant.getTeam(), participant.getMemberOrder());
 
         ParticipantDTO result = new ParticipantDTO();
         result.setId(participant.getId());
@@ -416,7 +593,7 @@ public class GameService {
     }
 
     public List<ParticipantDTO> getParticipants(Long gameId) {
-        return participantRepository.findByGameId(gameId).stream()
+        List<ParticipantDTO> participants = participantRepository.findByGameId(gameId).stream()
                 .map(p -> {
                     ParticipantDTO dto = new ParticipantDTO();
                     dto.setId(p.getId());
@@ -426,6 +603,11 @@ public class GameService {
                     return dto;
                 })
                 .toList();
+        log.info("[getParticipants] gameId={}, total={}, teams: T1={}, T2={}",
+                gameId, participants.size(),
+                participants.stream().filter(p -> p.getTeam() == 1).count(),
+                participants.stream().filter(p -> p.getTeam() == 2).count());
+        return participants;
     }
 
     private GameDTO mapToGameDTO(Game game) {
@@ -458,6 +640,9 @@ public class GameService {
                 dto.setWinner("draw");
             }
         }
+        log.debug("[mapToGameDTO] gameId={}, status={}, roundStatus={}, controllingTeam={}, currentQuestionId={}, team1Score={}, team2Score={}, roundPoints={}",
+                dto.getId(), dto.getStatus(), dto.getCurrentRoundStatus(), dto.getControllingTeam(),
+                dto.getCurrentQuestionId(), dto.getTeam1Score(), dto.getTeam2Score(), dto.getCurrentRoundPoints());
         return dto;
     }
 
