@@ -1,10 +1,8 @@
 package com.AlanPacheco.CienMD_app.Controller;
 
-import com.AlanPacheco.CienMD_app.DTO.CreateParticipantDTO;
 import com.AlanPacheco.CienMD_app.DTO.GameDTO;
 import com.AlanPacheco.CienMD_app.DTO.GameQuestionDTO;
 import com.AlanPacheco.CienMD_app.DTO.GameResultsDTO;
-import com.AlanPacheco.CienMD_app.DTO.ParticipantDTO;
 import com.AlanPacheco.CienMD_app.DTO.RoundDTO;
 import com.AlanPacheco.CienMD_app.Service.GameService;
 import jakarta.validation.Valid;
@@ -66,16 +64,5 @@ public class GameController {
         return ResponseEntity.ok(gameService.endRound(gameId));
     }
 
-    @PostMapping("/{gameId}/participants")
-    public ResponseEntity<ParticipantDTO> addParticipant(
-            @PathVariable Long gameId,
-            @RequestBody @Valid CreateParticipantDTO dto) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(gameService.addParticipant(gameId, dto));
-    }
 
-    @GetMapping("/{gameId}/participants")
-    public ResponseEntity<List<ParticipantDTO>> getParticipants(@PathVariable Long gameId) {
-        return ResponseEntity.ok(gameService.getParticipants(gameId));
-    }
 }
