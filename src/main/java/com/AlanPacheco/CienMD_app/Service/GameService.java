@@ -26,6 +26,8 @@ import com.AlanPacheco.CienMD_app.Repository.GameRepository;
 import com.AlanPacheco.CienMD_app.Repository.GameRoundRepository;
 import com.AlanPacheco.CienMD_app.Repository.ParticipantRepository;
 import com.AlanPacheco.CienMD_app.Repository.QuestionRepository;
+import com.AlanPacheco.CienMD_app.Config.GameEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,16 +46,19 @@ public class GameService {
     private final AnswerRepository answerRepository;
     private final ParticipantRepository participantRepository;
     private final QuestionRepository questionRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public GameService(GameRepository gameRepository, GameRoundRepository gameRoundRepository,
                        GameQuestionRepository gameQuestionRepository, AnswerRepository answerRepository,
-                       ParticipantRepository participantRepository, QuestionRepository questionRepository) {
+                       ParticipantRepository participantRepository, QuestionRepository questionRepository,
+                       ApplicationEventPublisher eventPublisher) {
         this.gameRepository = gameRepository;
         this.gameRoundRepository = gameRoundRepository;
         this.gameQuestionRepository = gameQuestionRepository;
         this.answerRepository = answerRepository;
         this.participantRepository = participantRepository;
         this.questionRepository = questionRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -89,7 +94,9 @@ public class GameService {
         gameQuestionRepository.saveAll(gameQuestions);
         game.setGameQuestions(gameQuestions);
 
-        return mapToGameDTO(gameRepository.save(game));
+        game = gameRepository.save(game);
+        eventPublisher.publishEvent(new GameEvent("GAME_CREATED", game.getId()));
+        return mapToGameDTO(game);
     }
 
     public GameDTO getGameById(Long gameId) {
@@ -139,6 +146,7 @@ public class GameService {
         game.setTeam1Errors(0);
         game.setTeam2Errors(0);
         gameRepository.save(game);
+        eventPublisher.publishEvent(new GameEvent("ROUND_STARTED", gameId));
 
         return mapToGameDTO(game);
     }
@@ -188,6 +196,7 @@ public class GameService {
 
         gameRoundRepository.save(round);
         gameRepository.save(game);
+        eventPublisher.publishEvent(new GameEvent("ANSWER_SUBMITTED", gameId));
 
         return mapToGameQuestionDTO(gameQuestion);
     }
@@ -203,6 +212,7 @@ public class GameService {
 
         game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
         gameRepository.save(game);
+        eventPublisher.publishEvent(new GameEvent("ROUND_ENDED", gameId));
 
         return mapToGameDTO(game);
     }
