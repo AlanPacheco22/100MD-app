@@ -9,75 +9,71 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg" style="background: linear-gradient(90deg, #006847 0%, #FFFFFF 50%, #CE1126 100%);">
+    <nav class="navbar navbar-expand-lg">
         <div class="container">
-            <a class="navbar-brand fw-bold text-dark" href="#">100 Mexicanos Dijeron</a>
-            <div class="d-flex align-items-center">
-                <span class="navbar-text me-3 text-dark fw-semibold" sec:authentication="name"></span>
-                <a th:href="@{/logout}" class="btn btn-outline-dark btn-sm">Salir</a>
+            <a class="navbar-brand" href="/dashboard">100 MEXICANOS DIJERON</a>
+            <div class="d-flex align-items-center gap-3">
+                <span class="navbar-text text-secondary fw-semibold" sec:authentication="name"></span>
+                <a th:href="@{/logout}" class="btn btn-outline-secondary btn-sm">Salir</a>
             </div>
         </div>
     </nav>
 
-    <div class="container mt-4" x-data="newGameModal()">
-        <div class="row mb-4">
+    <div class="container mt-4" x-data="dashboardApp()">
+        <!-- Header -->
+        <div class="row mb-4 align-items-center">
             <div class="col">
-                <h1>Partidas</h1>
+                <h1 class="fw-bold mb-0" style="font-family: 'Orbitron', sans-serif;">PARTIDAS</h1>
+                <small class="text-secondary">Gestiona tus partidas del juego</small>
             </div>
             <div class="col text-end">
-                <a th:href="@{/history}" class="btn btn-outline-info me-1">Historial</a>
-                <a th:href="@{/stats}" class="btn btn-outline-info me-1">Estadísticas</a>
+                <a th:href="@{/history}" class="btn btn-action info btn-sm me-1">Historial</a>
+                <a th:href="@{/stats}" class="btn btn-action info btn-sm me-1">Estadísticas</a>
                 <div sec:authorize="hasRole('ROLE_ADMIN')" class="d-inline-block me-1">
-                    <a th:href="@{/admin/questions}" class="btn btn-outline-primary">Admin</a>
+                    <a th:href="@{/admin/questions}" class="btn btn-action primary btn-sm">Admin</a>
                 </div>
-                <button class="btn btn-success btn-lg" @click="showModal = true">Nueva Partida</button>
+                <button class="btn btn-action primary btn-lg" @click="showModal = true">+ Nueva Partida</button>
             </div>
         </div>
 
-        <div class="row">
-            <div class="col">
-                <div class="card">
-                    <div class="card-body">
-                        <div th:if="${games.empty}" class="text-center py-5">
-                            <p class="text-muted fs-5">No hay partidas aún. ¡Crea una!</p>
-                            <button class="btn btn-success btn-lg mt-3" @click="showModal = true">Crear Primera Partida</button>
-                        </div>
-                        <div th:if="${!games.empty}">
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead class="table-dark">
-                                        <tr>
-                                            <th>ID</th>
-                                            <th>Fecha</th>
-                                            <th>Estado</th>
-                                            <th>Rondas</th>
-                                            <th class="text-center" style="color: #006847;">Equipo 1</th>
-                                            <th class="text-center" style="color: #CE1126;">Equipo 2</th>
-                                            <th>Acción</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr th:each="game : ${games}">
-                                            <td th:text="${game.id}"></td>
-                                            <td th:text="${#temporals.format(game.date, 'dd/MM/yyyy HH:mm')}"></td>
-                                            <td>
-                                                <span th:text="${game.status}" class="badge"
-                                                      th:classappend="${game.status == 'FINISHED'} ? 'bg-secondary' : (${game.status == 'IN_PROGRESS'} ? 'bg-success' : 'bg-warning text-dark')"></span>
-                                            </td>
-                                            <td th:text="${game.roundsPlayed} + ' / ' + ${game.totalRounds}"></td>
-                                            <td class="text-center fw-bold" style="color: #006847;" th:text="${game.team1Score}"></td>
-                                            <td class="text-center fw-bold" style="color: #CE1126;" th:text="${game.team2Score}"></td>
-                                            <td>
-                                                <a th:href="@{'/jugar/' + ${game.id}}" class="btn btn-sm btn-primary"
-                                                   th:classappend="${game.status == 'FINISHED'} ? 'btn-secondary disabled' : ''">
-                                                    Jugar
-                                                </a>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+        <!-- Empty State -->
+        <div th:if="${games.empty}" class="text-center py-5">
+            <div class="game-board" style="max-width: 500px; margin: 0 auto; padding: 3rem;">
+                <h3 class="fw-bold mb-3">No hay partidas aún</h3>
+                <p class="text-white-50 mb-4">¡Crea tu primera partida y empieza a jugar!</p>
+                <button class="btn btn-action primary btn-lg px-5" @click="showModal = true">Crear Primera Partida</button>
+            </div>
+        </div>
+
+        <!-- Game Cards Grid -->
+        <div th:if="${!games.empty}" class="row g-3">
+            <div th:each="game : ${games}" class="col-md-6 col-lg-4">
+                <div class="game-card" th:classappend="${game.status == 'FINISHED'} ? 'game-finished' : ''">
+                    <div class="game-card-header">
+                        <span class="badge px-3 py-2"
+                              th:classappend="${game.status == 'FINISHED'} ? 'bg-secondary' : (${game.status == 'IN_PROGRESS'} ? 'bg-success' : 'bg-warning text-dark')"
+                              th:text="${game.status == 'FINISHED'} ? 'FINALIZADA' : (${game.status == 'IN_PROGRESS'} ? 'EN JUEGO' : 'PENDIENTE')"></span>
+                        <small class="text-secondary" th:text="${#temporals.format(game.date, 'dd/MM/yyyy HH:mm')}"></small>
+                    </div>
+                    <div class="game-card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="text-center">
+                                <div class="team-label" style="color: var(--green);">Equipo 1</div>
+                                <div class="score-big" th:text="${game.team1Score}">0</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="vs-text">VS</div>
+                                <div class="rounds-text" th:text="'R' + ${game.roundsPlayed} + '/' + ${game.totalRounds}"></div>
+                            </div>
+                            <div class="text-center">
+                                <div class="team-label" style="color: var(--red);">Equipo 2</div>
+                                <div class="score-big" th:text="${game.team2Score}">0</div>
                             </div>
                         </div>
+                    </div>
+                    <div class="game-card-footer">
+                        <a th:href="@{'/jugar/' + ${game.id}}" class="btn btn-action primary btn-sm"
+                           th:text="${game.status == 'FINISHED'} ? 'Ver Resultados' : 'Jugar'">Jugar</a>
                     </div>
                 </div>
             </div>
@@ -87,12 +83,12 @@
         <div class="modal fade" :class="{ show: showModal }" :style="showModal ? 'display: block;' : 'display: none;'" tabindex="-1" @click.self="showModal = false">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
-                    <div class="modal-header" style="background: linear-gradient(90deg, #006847, #CE1126); color: white;">
-                        <h5 class="modal-title">Nueva Partida</h5>
+                    <div class="modal-header py-3" style="background: linear-gradient(90deg, var(--green), var(--red));">
+                        <h5 class="modal-title fw-bold">NUEVA PARTIDA</h5>
                         <button type="button" class="btn-close btn-close-white" @click="showModal = false"></button>
                     </div>
-                    <div class="modal-body">
-                        <div class="row mb-3">
+                    <div class="modal-body p-4">
+                        <div class="row mb-4">
                             <div class="col-md-4">
                                 <label class="form-label fw-bold">Rondas</label>
                                 <input type="number" class="form-control" x-model.number="totalRounds" min="2" max="10" @input="updateMultipliers()">
@@ -103,7 +99,7 @@
                             </div>
                         </div>
 
-                        <div class="mb-3">
+                        <div class="mb-4">
                             <label class="form-label fw-bold">Multiplicador por ronda</label>
                             <div class="d-flex flex-wrap gap-2">
                                 <template x-for="(mult, idx) in multipliers" :key="idx">
@@ -117,7 +113,7 @@
                                     </div>
                                 </template>
                             </div>
-                            <small class="text-muted">Última ronda = x3, penúltima = x2</small>
+                            <small class="text-secondary">Última ronda = x3, penúltima = x2 (automático)</small>
                         </div>
 
                         <div class="alert alert-info mb-0" x-show="totalRounds < 2 || teamSize < 2">
@@ -126,8 +122,8 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" @click="showModal = false">Cancelar</button>
-                        <button type="button" class="btn btn-success" @click="createGame" :disabled="loading || totalRounds < 2 || teamSize < 2">
-                            <span x-show="!loading">Crear Partida</span>
+                        <button type="button" class="btn btn-action primary" @click="createGame" :disabled="loading || totalRounds < 2 || teamSize < 2">
+                            <span x-show="!loading">CREAR PARTIDA</span>
                             <span x-show="loading">Creando...</span>
                         </button>
                     </div>
@@ -138,7 +134,7 @@
     </div>
 
     <script>
-    function newGameModal() {
+    function dashboardApp() {
         return {
             showModal: false,
             loading: false,
