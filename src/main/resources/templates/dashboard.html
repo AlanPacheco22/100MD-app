@@ -6,6 +6,7 @@
     <title>Dashboard — 100 Mexicanos Dijeron</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link th:href="@{/css/style.css}" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg" style="background: linear-gradient(90deg, #006847 0%, #FFFFFF 50%, #CE1126 100%);">
@@ -18,7 +19,7 @@
         </div>
     </nav>
 
-    <div class="container mt-4">
+    <div class="container mt-4" x-data="newGameModal()">
         <div class="row mb-4">
             <div class="col">
                 <h1>Partidas</h1>
@@ -29,7 +30,7 @@
                 <div sec:authorize="hasRole('ROLE_ADMIN')" class="d-inline-block me-1">
                     <a th:href="@{/admin/questions}" class="btn btn-outline-primary">Admin</a>
                 </div>
-                <a th:href="@{/api/games}" class="btn btn-success btn-lg">Nueva Partida</a>
+                <button class="btn btn-success btn-lg" @click="showModal = true">Nueva Partida</button>
             </div>
         </div>
 
@@ -39,7 +40,7 @@
                     <div class="card-body">
                         <div th:if="${games.empty}" class="text-center py-5">
                             <p class="text-muted fs-5">No hay partidas aún. ¡Crea una!</p>
-                            <a th:href="@{/api/games}" class="btn btn-success btn-lg mt-3">Crear Primera Partida</a>
+                            <button class="btn btn-success btn-lg mt-3" @click="showModal = true">Crear Primera Partida</button>
                         </div>
                         <div th:if="${!games.empty}">
                             <div class="table-responsive">
@@ -49,6 +50,7 @@
                                             <th>ID</th>
                                             <th>Fecha</th>
                                             <th>Estado</th>
+                                            <th>Rondas</th>
                                             <th class="text-center" style="color: #006847;">Equipo 1</th>
                                             <th class="text-center" style="color: #CE1126;">Equipo 2</th>
                                             <th>Acción</th>
@@ -57,17 +59,18 @@
                                     <tbody>
                                         <tr th:each="game : ${games}">
                                             <td th:text="${game.id}"></td>
-                                            <td th:text="${game.date}"></td>
+                                            <td th:text="${#temporals.format(game.date, 'dd/MM/yyyy HH:mm')}"></td>
                                             <td>
                                                 <span th:text="${game.status}" class="badge"
                                                       th:classappend="${game.status == 'FINISHED'} ? 'bg-secondary' : (${game.status == 'IN_PROGRESS'} ? 'bg-success' : 'bg-warning text-dark')"></span>
                                             </td>
+                                            <td th:text="${game.roundsPlayed} + ' / ' + ${game.totalRounds}"></td>
                                             <td class="text-center fw-bold" style="color: #006847;" th:text="${game.team1Score}"></td>
                                             <td class="text-center fw-bold" style="color: #CE1126;" th:text="${game.team2Score}"></td>
                                             <td>
                                                 <a th:href="@{'/jugar/' + ${game.id}}" class="btn btn-sm btn-primary"
                                                    th:classappend="${game.status == 'FINISHED'} ? 'btn-secondary disabled' : ''">
-                                                   Jugar
+                                                    Jugar
                                                 </a>
                                             </td>
                                         </tr>
@@ -79,7 +82,108 @@
                 </div>
             </div>
         </div>
+
+        <!-- Modal Nueva Partida -->
+        <div class="modal fade" :class="{ show: showModal }" :style="showModal ? 'display: block;' : 'display: none;'" tabindex="-1" @click.self="showModal = false">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header" style="background: linear-gradient(90deg, #006847, #CE1126); color: white;">
+                        <h5 class="modal-title">Nueva Partida</h5>
+                        <button type="button" class="btn-close btn-close-white" @click="showModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Rondas</label>
+                                <input type="number" class="form-control" x-model.number="totalRounds" min="2" max="10" @input="updateMultipliers()">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Miembros por equipo</label>
+                                <input type="number" class="form-control" x-model.number="teamSize" min="2" max="5">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Multiplicador por ronda</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                <template x-for="(mult, idx) in multipliers" :key="idx">
+                                    <div class="input-group" style="width: 140px;">
+                                        <span class="input-group-text" x-text="'R' + (idx + 1)"></span>
+                                        <select class="form-select" x-model.number="multipliers[idx]">
+                                            <option value="1">x1</option>
+                                            <option value="2">x2</option>
+                                            <option value="3">x3</option>
+                                        </select>
+                                    </div>
+                                </template>
+                            </div>
+                            <small class="text-muted">Última ronda = x3, penúltima = x2</small>
+                        </div>
+
+                        <div class="alert alert-info mb-0" x-show="totalRounds < 2 || teamSize < 2">
+                            <small>Mínimo 2 rondas y 2 miembros por equipo</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @click="showModal = false">Cancelar</button>
+                        <button type="button" class="btn btn-success" @click="createGame" :disabled="loading || totalRounds < 2 || teamSize < 2">
+                            <span x-show="!loading">Crear Partida</span>
+                            <span x-show="loading">Creando...</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show" x-show="showModal" @click="showModal = false" x-cloak></div>
     </div>
+
+    <script>
+    function newGameModal() {
+        return {
+            showModal: false,
+            loading: false,
+            totalRounds: 3,
+            teamSize: 5,
+            multipliers: [1, 1, 2],
+
+            updateMultipliers() {
+                const n = this.totalRounds;
+                const arr = [];
+                for (let i = 0; i < n; i++) {
+                    if (i < n - 2) arr.push(1);
+                    else if (i === n - 2) arr.push(2);
+                    else arr.push(3);
+                }
+                this.multipliers = arr;
+            },
+
+            async createGame() {
+                this.loading = true;
+                try {
+                    const res = await fetch('/api/games', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            totalRounds: this.totalRounds,
+                            teamSize: this.teamSize,
+                            multipliers: this.multipliers
+                        })
+                    });
+                    if (res.ok) {
+                        const game = await res.json();
+                        window.location.href = '/jugar/' + game.id;
+                    } else {
+                        const err = await res.json();
+                        alert('Error: ' + (err.message || JSON.stringify(err)));
+                    }
+                } catch (e) {
+                    alert('Error de conexión: ' + e.message);
+                }
+                this.loading = false;
+            }
+        }
+    }
+    </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>

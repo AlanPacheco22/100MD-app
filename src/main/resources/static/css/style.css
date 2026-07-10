@@ -15,7 +15,7 @@ body {
 }
 
 .game-board {
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
     border-radius: 15px;
     padding: 2rem;
     min-height: 400px;
@@ -25,6 +25,8 @@ body {
     border-radius: 15px;
     padding: 1.5rem;
     text-align: center;
+    transition: all 0.3s;
+    border: 3px solid transparent;
 }
 
 .team-card.team-1 {
@@ -37,6 +39,11 @@ body {
     color: white;
 }
 
+.team-card.team-active {
+    border-color: #FFD700;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+}
+
 .score-display {
     font-size: 3rem;
     font-weight: bold;
@@ -46,28 +53,72 @@ body {
     font-size: 1.5rem;
     font-weight: 600;
     text-align: center;
-    padding: 2rem;
+    padding: 1.5rem;
+    color: white;
 }
 
-.answer-btn {
-    width: 100%;
-    text-align: left;
-    padding: 1rem;
+.answer-row {
+    display: flex;
+    align-items: center;
+    padding: 0.8rem 1.2rem;
     margin-bottom: 0.5rem;
-    font-size: 1.1rem;
-    border: 2px solid #dee2e6;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: white;
     transition: all 0.3s;
 }
 
-.answer-btn:hover {
-    border-color: var(--green);
-    background-color: #f0f8f0;
+.answer-row:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
 }
 
-.answer-btn .score {
-    float: right;
+.answer-number {
+    background: var(--green);
+    color: white;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-weight: bold;
-    color: var(--green);
+    font-size: 0.9rem;
+    margin-right: 1rem;
+    flex-shrink: 0;
+}
+
+.answer-text {
+    flex: 1;
+    font-size: 1.1rem;
+}
+
+.answer-score {
+    font-weight: bold;
+    color: #FFD700;
+    font-size: 1.1rem;
+    margin-left: 1rem;
+}
+
+.strike-icon {
+    font-size: 1.8rem;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.strike-active {
+    color: #FF4444;
+    text-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+}
+
+.strike-inactive {
+    color: rgba(255, 255, 255, 0.2);
+}
+
+.turn-indicator {
+    font-size: 1rem;
+    border-radius: 8px;
 }
 
 @keyframes revealAnswer {
@@ -77,4 +128,8 @@ body {
 
 .reveal {
     animation: revealAnswer 0.5s ease-out;
+}
+
+.opacity-60 {
+    opacity: 0.6;
 }

@@ -19,100 +19,184 @@
         <div class="container">
             <a class="navbar-brand fw-bold text-dark" href="#">100 Mexicanos Dijeron</a>
             <div class="d-flex align-items-center">
+                <span class="badge bg-dark me-2" x-text="'Ronda ' + roundsPlayed + '/' + totalRounds"></span>
                 <span class="navbar-text me-3 fw-semibold" sec:authentication="name"></span>
                 <a th:href="@{/dashboard}" class="btn btn-outline-dark btn-sm">Salir</a>
             </div>
         </div>
     </nav>
 
-    <!-- Scores -->
-    <div class="container mt-3">
-        <div class="row g-2">
-            <div class="col-5">
-                <div class="team-card team-1" :class="{ 'opacity-75': turn !== 'TURN_PLAYER1' && turn !== 'STEAL_ATTEMPT' }">
-                    <h4 class="mb-1">Equipo 1</h4>
-                    <div class="score-display" x-text="team1Score">0</div>
-                    <div class="mt-1">
-                        <span class="badge bg-light text-dark">
-                            Strokes: <span x-text="team1Errors"></span>/3
-                        </span>
+    <!-- ============ FASE 6: SETUP DE PARTICIPANTES ============ -->
+    <div x-show="status === 'NOT_STARTED' && !setupComplete" class="container mt-4 flex-grow-1">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="card shadow">
+                    <div class="card-header text-center" style="background: linear-gradient(90deg, #006847, #CE1126); color: white;">
+                        <h4 class="mb-0">Configurar Equipos</h4>
+                        <small x-text="'Máximo ' + teamSize + ' miembros por equipo'"></small>
                     </div>
-                    <div class="mt-1 d-flex justify-content-center gap-1">
-                        <template x-for="i in 3" :key="i">
-                            <span class="fs-4" :class="i <= team1Errors ? 'text-danger' : 'text-white opacity-25'">✗</span>
-                        </template>
-                    </div>
-                </div>
-            </div>
-            <div class="col-2 d-flex align-items-center justify-content-center">
-                <div class="text-center">
-                    <div class="fs-1 fw-bold" style="color: #006847;">VS</div>
-                    <div class="badge bg-warning text-dark mt-1" x-text="status"></div>
-                </div>
-            </div>
-            <div class="col-5">
-                <div class="team-card team-2" :class="{ 'opacity-75': turn !== 'TURN_PLAYER2' && turn !== 'STEAL_ATTEMPT' }">
-                    <h4 class="mb-1">Equipo 2</h4>
-                    <div class="score-display" x-text="team2Score">0</div>
-                    <div class="mt-1">
-                        <span class="badge bg-light text-dark">Steal: 1 chance</span>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Equipo 1 -->
+                            <div class="col-md-6">
+                                <h5 style="color: #006847;">Equipo 1</h5>
+                                <template x-for="(p, idx) in team1Members" :key="idx">
+                                    <div class="input-group mb-2">
+                                        <span class="input-group-text" x-text="(idx + 1)"></span>
+                                        <input type="text" class="form-control" x-model="team1Members[idx]"
+                                               :placeholder="'Nombre miembro ' + (idx + 1)">
+                                        <button class="btn btn-outline-danger" @click="team1Members.splice(idx, 1)">×</button>
+                                    </div>
+                                </template>
+                                <button class="btn btn-outline-success btn-sm" @click="team1Members.push('')"
+                                        x-show="team1Members.length < teamSize">
+                                    + Agregar miembro
+                                </button>
+                            </div>
+                            <!-- Equipo 2 -->
+                            <div class="col-md-6">
+                                <h5 style="color: #CE1126;">Equipo 2</h5>
+                                <template x-for="(p, idx) in team2Members" :key="idx">
+                                    <div class="input-group mb-2">
+                                        <span class="input-group-text" x-text="(idx + 1)"></span>
+                                        <input type="text" class="form-control" x-model="team2Members[idx]"
+                                               :placeholder="'Nombre miembro ' + (idx + 1)">
+                                        <button class="btn btn-outline-danger" @click="team2Members.splice(idx, 1)">×</button>
+                                    </div>
+                                </template>
+                                <button class="btn btn-outline-danger btn-sm" @click="team2Members.push('')"
+                                        x-show="team2Members.length < teamSize">
+                                    + Agregar miembro
+                                </button>
+                            </div>
+                        </div>
+                        <div class="text-center mt-4">
+                            <button class="btn btn-success btn-lg" @click="saveParticipants"
+                                    :disabled="loading || team1Members.filter(n => n.trim()).length === 0 || team2Members.filter(n => n.trim()).length === 0">
+                                <span x-show="!loading">Iniciar Juego</span>
+                                <span x-show="loading">Guardando...</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Current turn indicator -->
-    <div class="container mt-2">
-        <div class="alert text-center fw-bold py-2 mb-0"
-             :class="turn === 'TURN_PLAYER1' ? 'alert-success' : (turn === 'STEAL_ATTEMPT' ? 'alert-warning' : (turn === 'TURN_PLAYER2' ? 'alert-danger' : 'alert-secondary'))">
-            <span x-text="turnMessage" class="fs-5"></span>
+    <!-- ============ FASE 7: GAME BOARD ============ -->
+    <div x-show="status !== 'NOT_STARTED' || setupComplete" x-cloak>
+
+        <!-- Scores -->
+        <div class="container mt-3">
+            <div class="row g-2 align-items-center">
+                <div class="col-5">
+                    <div class="team-card team-1"
+                         :class="{ 'team-active': controllingTeam === 1, 'opacity-60': controllingTeam !== 1 && status === 'IN_PROGRESS' }">
+                        <h4 class="mb-1">Equipo 1</h4>
+                        <div class="score-display" x-text="team1Score">0</div>
+                        <div class="mt-1" x-show="status === 'IN_PROGRESS' && controllingTeam === 1">
+                            <span class="badge bg-warning text-dark">CONTROL</span>
+                        </div>
+                        <div class="mt-1 d-flex justify-content-center gap-1">
+                            <template x-for="i in 3" :key="'e1-'+i">
+                                <span class="strike-icon" :class="i <= team1Errors ? 'strike-active' : 'strike-inactive'">✗</span>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-2 d-flex align-items-center justify-content-center">
+                    <div class="text-center">
+                        <div class="fs-1 fw-bold" style="color: #006847;">VS</div>
+                        <div class="badge bg-dark mt-1" x-text="status === 'FINISHED' ? 'FINAL' : 'R' + roundsPlayed"></div>
+                        <div class="mt-1">
+                            <span class="badge" :class="currentMultiplier >= 3 ? 'bg-danger' : (currentMultiplier >= 2 ? 'bg-warning text-dark' : 'bg-secondary')"
+                                  x-text="'x' + currentMultiplier"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-5">
+                    <div class="team-card team-2"
+                         :class="{ 'team-active': controllingTeam === 2, 'opacity-60': controllingTeam !== 2 && status === 'IN_PROGRESS' }">
+                        <h4 class="mb-1">Equipo 2</h4>
+                        <div class="score-display" x-text="team2Score">0</div>
+                        <div class="mt-1" x-show="status === 'IN_PROGRESS' && controllingTeam === 2">
+                            <span class="badge bg-warning text-dark">CONTROL</span>
+                        </div>
+                        <div class="mt-1 d-flex justify-content-center gap-1">
+                            <template x-for="i in 3" :key="'e2-'+i">
+                                <span class="strike-icon" :class="i <= team2Errors ? 'strike-active' : 'strike-inactive'">✗</span>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-    </div>
 
-    <!-- Question area -->
-    <div class="container mt-3 flex-grow-1">
-        <div class="card shadow game-board">
-            <div class="card-body text-center">
+        <!-- Turn indicator -->
+        <div class="container mt-2">
+            <div class="alert text-center fw-bold py-2 mb-0 turn-indicator"
+                 :class="{
+                     'alert-success': turn === 'TURN_PLAYER1',
+                     'alert-danger': turn === 'TURN_PLAYER2',
+                     'alert-warning': turn === 'STEAL_ATTEMPT',
+                     'alert-secondary': turn === 'FINISHED' || turn === 'NOT_STARTED'
+                 }">
+                <span x-text="turnMessage" class="fs-5"></span>
+                <span x-show="currentRoundPoints > 0" class="ms-2 badge bg-dark"
+                      x-text="currentRoundPoints + ' pts en juego'"></span>
+            </div>
+        </div>
 
-                <!-- No game started -->
-                <div x-show="!currentQuestion && status !== 'FINISHED'" class="py-5">
+        <!-- No game started -->
+        <div x-show="!currentQuestion && status !== 'FINISHED' && status !== 'NOT_STARTED'" class="container mt-4 text-center">
+            <div class="card shadow game-board">
+                <div class="card-body py-5">
                     <h3 class="mb-4">¡Bienvenidos a 100 Mexicanos Dijeron!</h3>
-                    <p class="text-muted mb-4" x-text="status === 'NOT_STARTED' ? 'Agrega participantes y presiona Iniciar Ronda' : 'Presiona Siguiente Ronda para continuar'"></p>
+                    <p class="text-muted mb-4" x-text="status === 'IN_PROGRESS' ? 'Presiona Siguiente Ronda para continuar' : 'Presiona Iniciar Ronda para comenzar'"></p>
                     <button class="btn btn-success btn-lg" @click="startRound" :disabled="loading">
                         Iniciar Ronda
                     </button>
                 </div>
+            </div>
+        </div>
 
-                <!-- Game finished -->
-                <div x-show="status === 'FINISHED'" class="py-5">
+        <!-- Game finished -->
+        <div x-show="status === 'FINISHED'" class="container mt-4 text-center" x-cloak>
+            <div class="card shadow game-board">
+                <div class="card-body py-5">
                     <h3 class="mb-4">¡Partida terminada!</h3>
                     <button class="btn btn-info btn-lg" @click="getResults">Ver Resultados</button>
                 </div>
+            </div>
+        </div>
 
-                <!-- Question display -->
-                <div x-show="currentQuestion && status !== 'FINISHED'" x-cloak>
-                    <div class="question-text mb-4" x-text="currentQuestion.questionText"></div>
+        <!-- Question display -->
+        <div x-show="currentQuestion && status !== 'FINISHED'" class="container mt-3 flex-grow-1" x-cloak>
+            <div class="card shadow game-board">
+                <div class="card-body text-center">
+                    <!-- Question text -->
+                    <div class="question-text mb-4" x-text="currentQuestion?.questionText"></div>
 
                     <!-- Revealed answers -->
                     <div class="row justify-content-center">
                         <div class="col-md-8">
-                            <template x-for="(answer, index) in currentQuestion.answers" :key="answer.id">
+                            <template x-for="(answer, index) in (currentQuestion?.answers || [])" :key="answer.id">
                                 <div x-show="answer.revealed"
-                                     class="answer-btn reveal"
+                                     class="answer-row reveal"
                                      :style="'animation-delay: ' + (index * 0.3) + 's'">
-                                    <span x-text="answer.text"></span>
-                                    <span class="score" x-text="answer.score + ' pts'"></span>
+                                    <span class="answer-number" x-text="index + 1"></span>
+                                    <span class="answer-text" x-text="answer.text"></span>
+                                    <span class="answer-score" x-text="answer.score + ' pts'"></span>
                                 </div>
                             </template>
-                            <div x-show="currentQuestion.answers.filter(a => a.revealed).length === 0" class="text-muted py-4">
+                            <div x-show="!currentQuestion?.answers?.some(a => a.revealed)" class="text-muted py-4">
                                 <em>Esperando respuestas...</em>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Answer input -->
-                    <div x-show="turn === 'TURN_PLAYER1' || turn === 'STEAL_ATTEMPT'" class="mt-4">
+                    <!-- Answer input - only controlling team -->
+                    <div x-show="(turn === 'TURN_PLAYER1' || turn === 'TURN_PLAYER2' || turn === 'STEAL_ATTEMPT') && !roundFinished" class="mt-4">
                         <div class="row justify-content-center">
                             <div class="col-md-6">
                                 <div class="input-group input-group-lg">
@@ -121,12 +205,12 @@
                                            :disabled="loading">
                                     <button class="btn btn-primary" @click="submitAnswer" :disabled="loading">
                                         <span x-show="!loading">Responder</span>
-                                        <span x-show="loading">Enviando...</span>
+                                        <span x-show="loading">...</span>
                                     </button>
                                 </div>
                                 <div x-show="lastResult" class="mt-2 alert py-2"
-                                     :class="lastResult.correct ? 'alert-success' : 'alert-danger'"
-                                     x-text="lastResult.message">
+                                     :class="lastResult?.correct ? 'alert-success' : 'alert-danger'"
+                                     x-text="lastResult?.message">
                                 </div>
                             </div>
                         </div>
@@ -135,14 +219,14 @@
                     <!-- Steal announcement -->
                     <div x-show="turn === 'STEAL_ATTEMPT' && !stealAttempted" class="mt-4" x-cloak>
                         <div class="alert alert-warning py-3">
-                            <h5 class="mb-2">⚡ ¡Oportunidad de Robo!</h5>
-                            <p class="mb-2" x-text="'El Equipo 2 puede robar ' + currentRoundPoints + ' puntos'"></p>
-                            <p class="mb-0"><small>Equipo 2: den UNA respuesta correcta para robar todos los puntos</small></p>
+                            <h5 class="mb-2">¡Oportunidad de Robo!</h5>
+                            <p class="mb-2" x-text="'El Equipo ' + (controllingTeam === 1 ? '2' : '1') + ' puede robar ' + currentRoundPoints + ' puntos'"></p>
+                            <p class="mb-0"><small>Den UNA respuesta correcta para robar todos los puntos</small></p>
                         </div>
                     </div>
 
-                    <!-- Pass button (only Team 1) -->
-                    <div x-show="turn === 'TURN_PLAYER1'" class="mt-3">
+                    <!-- Pass button - only controlling team -->
+                    <div x-show="(turn === 'TURN_PLAYER1' || turn === 'TURN_PLAYER2') && !roundFinished" class="mt-3">
                         <button class="btn btn-warning" @click="passTurn" :disabled="loading">
                             Pasar Turno
                         </button>
@@ -153,7 +237,7 @@
     </div>
 
     <!-- Bottom controls -->
-    <div class="container mt-3 mb-4">
+    <div class="container mt-3 mb-4" x-show="status !== 'NOT_STARTED' || setupComplete" x-cloak>
         <div class="row justify-content-center">
             <div class="col-md-8 text-center">
                 <button class="btn btn-success me-2" @click="startRound" :disabled="loading || status !== 'IN_PROGRESS' || turn !== 'FINISHED'" x-show="currentQuestion">
@@ -167,6 +251,8 @@
                 </button>
             </div>
         </div>
+
+        <!-- Results panel -->
         <div x-show="showResults" x-cloak class="row justify-content-center mt-3">
             <div class="col-md-6">
                 <div class="card shadow">
@@ -195,13 +281,8 @@
     </div>
 </div>
 
-<style>[x-cloak] { display: none !important; }
-
-.strike-x {
-    font-size: 1.5rem;
-    font-weight: bold;
-    transition: all 0.3s;
-}
+<style>
+[x-cloak] { display: none !important; }
 </style>
 
 <script>
@@ -214,6 +295,10 @@ function gameBoard() {
         team2Errors: [[${game.team2Errors}]],
         currentRoundPoints: [[${game.currentRoundPoints}]],
         roundsPlayed: [[${game.roundsPlayed}]],
+        totalRounds: [[${game.totalRounds}]],
+        teamSize: [[${game.teamSize}]],
+        currentMultiplier: [[${game.currentMultiplier}]],
+        controllingTeam: [[${game.controllingTeam}]] || null,
         status: '[[${game.status}]]',
         turn: '[[${game.currentRoundStatus}]]',
 
@@ -227,10 +312,18 @@ function gameBoard() {
         stompClient: null,
         stealAttempted: false,
 
+        // FASE 6: participant setup
+        setupComplete: false,
+        team1Members: [],
+        team2Members: [],
+        team1Participants: [],
+        team2Participants: [],
+        currentParticipantIndex: { 1: 0, 2: 0 },
+
         get turnMessage() {
             if (this.turn === 'TURN_PLAYER1') return 'Turno del Equipo 1';
             if (this.turn === 'TURN_PLAYER2') return 'Turno del Equipo 2';
-            if (this.turn === 'STEAL_ATTEMPT') return '⚡ ¡Oportunidad de Robo para el Equipo 2!';
+            if (this.turn === 'STEAL_ATTEMPT') return '¡Oportunidad de Robo!';
             if (this.turn === 'FINISHED') return 'Ronda terminada';
             if (this.status === 'FINISHED') return 'Partida terminada';
             return 'Esperando...';
@@ -238,8 +331,12 @@ function gameBoard() {
 
         init() {
             this.connectWebSocket();
-            if (this.turn === 'TURN_PLAYER1' || this.turn === 'TURN_PLAYER2' || this.turn === 'STEAL_ATTEMPT') {
-                this.loadCurrentQuestion();
+            this.loadParticipants();
+            if (this.status !== 'NOT_STARTED') {
+                this.setupComplete = true;
+                if (this.turn === 'TURN_PLAYER1' || this.turn === 'TURN_PLAYER2' || this.turn === 'STEAL_ATTEMPT') {
+                    this.loadCurrentQuestion();
+                }
             }
         },
 
@@ -255,11 +352,19 @@ function gameBoard() {
                     this.team2Errors = update.game.team2Errors;
                     this.currentRoundPoints = update.game.currentRoundPoints;
                     this.roundsPlayed = update.game.roundsPlayed;
+                    this.totalRounds = update.game.totalRounds;
+                    this.currentMultiplier = update.game.currentMultiplier;
+                    this.controllingTeam = update.game.controllingTeam;
                     this.status = update.game.status;
                     this.turn = update.game.currentRoundStatus;
 
                     if (update.event === 'ANSWER_CORRECT' || update.event === 'ANSWER_WRONG') {
                         this.loadCurrentQuestion();
+                        if (update.event === 'ANSWER_WRONG') {
+                            this.lastResult = { correct: false, message: '¡Respuesta incorrecta!' };
+                        } else {
+                            this.lastResult = { correct: true, message: '¡Correcta! +' + this.currentRoundPoints + ' pts' };
+                        }
                     }
                     if (update.event === 'STEAL_ATTEMPT' || update.event === 'TURN_PASSED') {
                         this.loadCurrentQuestion();
@@ -278,12 +383,70 @@ function gameBoard() {
             });
         },
 
+        // FASE 6: participant management
+        async loadParticipants() {
+            try {
+                const res = await fetch('/api/games/' + this.gameId + '/participants');
+                if (res.ok) {
+                    const participants = await res.json();
+                    this.team1Participants = participants.filter(p => p.team === 1);
+                    this.team2Participants = participants.filter(p => p.team === 2);
+                    if (this.team1Participants.length > 0 && this.team2Participants.length > 0) {
+                        this.setupComplete = true;
+                    }
+                }
+            } catch (e) {
+                console.error('Error loading participants:', e);
+            }
+        },
+
+        async saveParticipants() {
+            this.loading = true;
+            try {
+                const t1 = this.team1Members.filter(n => n.trim());
+                const t2 = this.team2Members.filter(n => n.trim());
+                for (const name of t1) {
+                    await fetch('/api/games/' + this.gameId + '/participants', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: name.trim(), team: 1 })
+                    });
+                }
+                for (const name of t2) {
+                    await fetch('/api/games/' + this.gameId + '/participants', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: name.trim(), team: 2 })
+                    });
+                }
+                await this.loadParticipants();
+                this.setupComplete = true;
+            } catch (e) {
+                alert('Error guardando participantes: ' + e.message);
+            }
+            this.loading = false;
+        },
+
+        getCurrentParticipantId() {
+            const team = this.controllingTeam || 1;
+            const list = team === 1 ? this.team1Participants : this.team2Participants;
+            if (list.length === 0) return 1;
+            const idx = this.currentParticipantIndex[team] % list.length;
+            return list[idx].id;
+        },
+
+        advanceParticipant() {
+            const team = this.controllingTeam || 1;
+            this.currentParticipantIndex[team]++;
+        },
+
         async startRound() {
             this.loading = true;
             this.showResults = false;
             this.currentQuestion = null;
             this.lastResult = null;
             this.stealAttempted = false;
+            this.currentParticipantIndex = { 1: 0, 2: 0 };
             try {
                 const res = await fetch('/api/games/' + this.gameId + '/rounds/start', { method: 'POST' });
                 if (!res.ok) {
@@ -323,10 +486,7 @@ function gameBoard() {
             this.loading = true;
             this.lastResult = null;
             try {
-                const participantId = this.turn === 'STEAL_ATTEMPT'
-                    ? (this.stealParticipantId || 1)
-                    : (this.getCurrentParticipantId() || 1);
-
+                const participantId = this.getCurrentParticipantId();
                 const res = await fetch('/api/games/' + this.gameId + '/rounds/answer', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -334,7 +494,7 @@ function gameBoard() {
                         participantId: participantId,
                         gameQuestionId: this.currentQuestion?.id || 1,
                         answerText: this.answerText.trim(),
-                        roundMultiplier: 1
+                        roundMultiplier: this.currentMultiplier
                     })
                 });
                 if (res.ok) {
@@ -343,6 +503,8 @@ function gameBoard() {
                     this.answerText = '';
                     if (this.turn === 'STEAL_ATTEMPT') {
                         this.stealAttempted = true;
+                    } else {
+                        this.advanceParticipant();
                     }
                     const gameRes = await fetch('/api/games/' + this.gameId);
                     const game = await gameRes.json();
@@ -402,10 +564,6 @@ function gameBoard() {
             this.loading = false;
         },
 
-        getCurrentParticipantId() {
-            return null; // TODO: select participant from UI
-        },
-
         updateGameState(game) {
             this.team1Score = game.team1Score;
             this.team2Score = game.team2Score;
@@ -413,6 +571,9 @@ function gameBoard() {
             this.team2Errors = game.team2Errors;
             this.currentRoundPoints = game.currentRoundPoints;
             this.roundsPlayed = game.roundsPlayed;
+            this.totalRounds = game.totalRounds;
+            this.currentMultiplier = game.currentMultiplier;
+            this.controllingTeam = game.controllingTeam;
             this.status = game.status;
             this.turn = game.currentRoundStatus;
         }
