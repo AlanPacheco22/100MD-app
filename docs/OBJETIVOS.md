@@ -23,60 +23,97 @@ Construir una API REST robusta y escalable que gestione el ciclo de vida complet
 
 ### 2. Administración de Partidas (Games)
 - Permitir la creación de partidas asociando preguntas seleccionadas aleatoriamente del banco.
-- Mantener el estado de cada partida: `NOT_STARTED`, `IN_PROGRESS`, `FINISHED`.
+- Mantener el estado de cada partida: `NOT_STARTED`, `IN_PROGRESS`, `SUDDEN_DEATH`, `FAST_MONEY`, `FINISHED`.
 - Gestionar la participación de jugadores dentro de cada partida.
+- Configuración flexible: rondas (2-10), multiplicadores por ronda, miembros por equipo (2-5), targetScore, timer.
 
 ### 3. Sistema de Rondas y Puntuación
-- Implementar el flujo de rondas dentro de una partida.
-- **Regla de errores:** Cada equipo puede fallar hasta 3 respuestas por ronda. Al llegar a 3 errores, el equipo contrario tiene UNA oportunidad de robar todos los puntos acumulados revelando una respuesta oculta. Si aciertan, roban los puntos; si fallan o el host selecciona "Terminar Ronda", los puntos se quedan con el equipo controlador.
-- **Puntuación:** Cada acierto suma el puntaje de la respuesta (porcentaje de encuesta) multiplicado por un factor (`multiplier`).
-- Controlar la transición de turnos entre equipos y el fin de ronda.
+- Implementar el flujo completo de rondas fiel al formato televisivo:
+  - **Cara a Cara**: careo inicial 1v1 entre jugadores para ganar control
+  - **Turnos individuales**: miembros del equipo responden en orden secuencial
+  - **Strikes**: 3 errores → robo del equipo contrario (solo el capitán)
+  - **Muerte Súbita**: tiebreaker después de 5 rondas, 1 solo strike
+  - **Dinero Rápido**: ronda de bonificación para el equipo ganador
+- 5 rondas con multiplicadores x1, x1, x2, x2, x3
+- Victoria a 300 puntos (detecta victoria mid-game)
 
 ### 4. Comunicación en Tiempo Real
-- Implementar WebSocket con protocolo STOMP para transmitir actualizaciones de la partida a todos los clientes conectados.
-- Notificar cambios de estado, puntuaciones, turnos y resultados en tiempo real.
-- Soportar SockJS como fallback para clientes que no soporten WebSocket nativo.
+- WebSocket con protocolo STOMP para transmitir actualizaciones de la partida a todos los clientes conectados.
+- 8 eventos WebSocket para todas las fases del juego.
+- SockJS como fallback para clientes que no soporten WebSocket nativo.
+- Modelo host-control: un host administra el juego, los espectadores ven en tiempo real.
 
 ### 5. API Documentada
-- Proveer documentación interactiva de la API mediante Swagger UI (OpenAPI).
-- La documentación debe estar disponible en `/swagger-ui/index.html` en entorno de desarrollo.
+- Documentación interactiva mediante Swagger UI (OpenAPI) en `/swagger-ui/index.html`.
 
 ### 6. Persistencia de Datos
-- Utilizar MySQL como base de datos relacional.
-- Emplear Spring Data JPA con Hibernate para el mapeo objeto-relacional.
-- Mantener la integridad referencial entre entidades (Game, Question, Answer, Participant, GameRound, GameQuestion).
+- MySQL con Spring Data JPA (Hibernate).
+- Flyway con 13 migraciones versionadas (V1-V13).
+- Spring Data JPA como capa de abstracción (cambio de BD sin modificar código Java).
 
 ### 7. Calidad y Mantenibilidad del Código
-- Seguir principios SOLID y buenas prácticas de diseño.
-- Usar Lombok para reducir código boilerplate.
-- Mantener una estructura de paquetes clara y por capas (Entity, Repository, Service, Controller, DTO, Config).
-- Incluir pruebas unitarias y de integración.
+- Lombok para reducir boilerplate.
+- MapStruct para mapeo automático DTO↔Entity.
+- AttributeConverter para mapeo de tipos personalizados (int[] ↔ String).
+- Estructura de paquetes clara por capas.
+- Pruebas unitarias y de integración (5/5 pasan).
+- GitHub Actions CI.
 
 ---
 
-## Funcionalidades Actuales (v1)
+## Funcionalidades Implementadas (v0.3.0)
 
+### Core del Juego
 - [x] Creación de partidas con selección aleatoria de preguntas
-- [x] CRUD de preguntas y respuestas
+- [x] Configuración flexible (rondas, multiplicadores, miembros, targetScore, timer)
+- [x] Lógica Family Feud: turnos, rondas, strikes, steal
+- [x] Cara a Cara (face-off) con buzzer y selección ganador
+- [x] Turnos individuales con avance secuencial
+- [x] Capitán designado por equipo
+- [x] Muerte Súbita (tiebreaker con 1 solo strike)
+- [x] Dinero Rápido (2 jugadores, timer, bonus 200 pts)
+- [x] Timer por turno configurable
+- [x] Host-control: host revela respuestas haciendo clic
+
+### Backend
+- [x] CRUD de preguntas y respuestas (AdminController)
 - [x] Registro de participantes por partida
-- [x] Host-control: host revela respuestas haciendo clic (sin input de texto)
-- [x] Cálculo de puntaje por respuesta correcta (con multiplicador)
-- [x] Control de errores por equipo (3 por equipo, transición a STEAL_ATTEMPT)
-- [x] Mecánica de robo: equipo contrario puede robar puntos al llegar a 3 errores
+- [x] Cálculo de puntaje con multiplicadores
+- [x] Control de errores por equipo (3 strikes → steal)
 - [x] Auto-endRound cuando todas las respuestas se revelan
-- [x] Finalización de rondas y partidas
-- [x] WebSocket con STOMP y SockJS (broadcast en tiempo real)
-- [x] UI premium estilo TV show (Poppins + Orbitron, colores MX, confetti, glow)
-- [x] Sonidos con Web Audio API (correcto, incorrecto, robo, celebración, etc.)
-- [x] Dashboard con cards y separación de juegos activos/historial
+- [x] WebSocket STOMP + SockJS (8 eventos, broadcast en tiempo real)
+- [x] Login y autenticación (Spring Security, BCrypt)
+- [x] Registro de usuarios
+- [x] Game history y player statistics
 - [x] Documentación Swagger/OpenAPI
 - [x] Logging completo (SLF4J backend + console.log frontend)
 
-## Funcionalidades Planeadas / En Desarrollo
+### Frontend
+- [x] UI premium estilo TV show (Poppins + Orbitron)
+- [x] Colores mexicanos: verde `#006847`, rojo `#CE1126`, dorado `#FFD700`
+- [x] Dashboard rediseñado con cards y modal de configuración
+- [x] Pantalla de juego host-controlled (~1297 líneas)
+- [x] Pantalla de resultados dedicada con confetti
+- [x] 8 sonidos con Web Audio API
+- [x] Navegación consistente con navbar oscura
+- [x] Diseño responsivo
 
-- [ ] Sistema de temporizador por turno
-- [ ] Autenticación y autorización
-- [ ] Panel administrativo web
-- [ ] Historial de partidas y estadísticas
+### Infraestructura
+- [x] MySQL con Flyway (13 migraciones V1-V13)
+- [x] Spring Data JPA (cambio de BD sin modificar código)
+- [x] Docker deployment
+- [x] Tests con H2 (5/5 pasan)
+- [x] GitHub Actions CI
+- [x] MapStruct (6 mappers, compile-time DTO mapping)
+- [x] AttributeConverter (IntArrayConverter)
+- [x] canvas-confetti@1.9.3 (CDN)
+- [x] Alpine.js componentes refactorizados (game-timer.js, fast-money.js)
+
+---
+
+## Funcionalidades Planeadas
+
+- [ ] Testcontainers (MySQL real en tests) — pendiente por falta de Docker
+- [ ] Robo solo del capitán (validación frontend)
 - [ ] Soporte para preguntas multimedia (imágenes, audio)
 - [ ] Internacionalización (i18n) para otros países hispanohablantes

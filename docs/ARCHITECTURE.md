@@ -7,11 +7,18 @@
 | Lenguaje | Java 17 |
 | Framework | Spring Boot 3.3.5 |
 | Build | Maven (con Wrapper: `mvnw`) |
-| Base de datos | MySQL |
+| Base de datos | MySQL (dev/prod) / H2 (tests) |
 | ORM | Spring Data JPA (Hibernate) |
-| API docs | Springdoc OpenAPI (Swagger UI) |
+| Mapeo DTO | MapStruct 1.5.5 + Lombok |
+| Seguridad | Spring Security (BCrypt, form login) |
+| Templates | Thymeleaf |
+| Frontend | Alpine.js 3.14.1 + Bootstrap 5 |
 | Tiempo real | Spring WebSocket + STOMP + SockJS |
-| Boilerplate | Lombok |
+| Boilerplate | Lombok 1.18.34 |
+| API docs | Springdoc OpenAPI (Swagger UI) |
+| Migraciones | Flyway (13 versiones: V1-V13) |
+| Audio | Web Audio API (oscillator-based) |
+| Confetti | canvas-confetti@1.9.3 (CDN) |
 
 ---
 
@@ -19,97 +26,89 @@
 
 ```
 com.AlanPacheco.CienMD_app/
-├── Application.java                  # Punto de entrada
+├── Application.java
 ├── Config/
-│   ├── SwaggerConfig.java            # Configuración de OpenAPI/Swagger
-│   └── WebSocketConfig.java          # Configuración STOMP/SockJS
+│   ├── SecurityConfig.java          # Spring Security (form login, BCrypt)
+│   ├── WebConfig.java               # CORS configuration
+│   ├── WebSocketConfig.java         # STOMP + SockJS configuration
+│   ├── WebSocketEventListener.java  # WebSocket event logging
+│   ├── GlobalExceptionHandler.java  # @RestControllerAdvice
+│   ├── GameEvent.java               # Application event for WS broadcast
+│   ├── DataInitializer.java         # Seed data on startup
+│   └── SwaggerConfig.java           # OpenAPI/Swagger config
 ├── Controller/
-│   ├── GameController.java           # REST: gestión de partidas
-│   ├── GameWebSocketController.java  # WebSocket: mensajes STOMP
-│   ├── ParticipantController.java    # REST: gestión de participantes
-│   ├── QuestionController.java       # REST: CRUD de preguntas
-│   └── RoundController.java          # REST: gestión de rondas
-├── DTO/
-│   ├── GameDTO.java                  # Estado de partida
-│   ├── GameUpdateDTO.java            # Actualización por WebSocket
-│   ├── GameQuestionDTO.java          # Pregunta con respuestas para una partida
-│   ├── RoundDTO.java                 # Envío de respuesta de participante
-│   └── AnswerDTO.java                # Respuesta con puntaje
+│   ├── GameController.java          # REST: CRUD partidas + rondas
+│   ├── GameWebSocketController.java # WebSocket: mensajes STOMP
+│   ├── FastMoneyController.java     # REST: dinero rápido
+│   ├── GameController.java          # REST: gestión de partidas
+│   ├── AuthController.java          # Web: login + registro
+│   ├── HomeController.java          # Web: dashboard + play
+│   ├── AdminController.java         # Web: CRUD preguntas
+│   ├── QuestionController.java      # REST: CRUD preguntas
+│   ├── StatsController.java         # REST: estadísticas
+│   └── RoundController.java         # REST: rondas (legacy)
+├── Service/
+│   ├── GameService.java             # Lógica de negocio principal (~1092 líneas)
+│   ├── FastMoneyService.java        # Lógica dinero rápido
+│   ├── StatsService.java            # Estadísticas e historial
+│   ├── UserService.java             # Registro de usuarios
+│   └── QuestionService.java         # CRUD preguntas
 ├── Entity/
-│   ├── Game.java                     # Partida (raíz del agregado)
-│   ├── GameRound.java                # Ronda individual
-│   ├── GameQuestion.java             # Relación Pregunta-Partida
-│   ├── Question.java                 # Pregunta de encuesta
-│   ├── Answer.java                   # Respuesta posible con puntaje
-│   └── Participant.java              # Jugador en una partida
-├── Enum/
-│   ├── GameStatus.java               # NOT_STARTED, IN_PROGRESS, FINISHED
-│   └── GameRoundStatus.java          # NOT_STARTED, TURN_PLAYER1, TURN_PLAYER2, FINISHED
+│   ├── Game.java                    # Partida (raíz del agregado)
+│   ├── GameQuestion.java            # Relación Pregunta-Partida
+│   ├── GameRound.java               # Registro de intento de respuesta
+│   ├── Question.java                # Pregunta de encuesta
+│   ├── Answer.java                  # Respuesta posible con puntaje
+│   ├── Participant.java             # Jugador en una partida
+│   ├── FastMoneyRound.java          # Ronda de dinero rápido
+│   └── User.java                    # Usuario del sistema
+├── DTO/
+│   ├── GameDTO.java                 # Estado de partida
+│   ├── GameQuestionDTO.java         # Pregunta con respuestas
+│   ├── GameUpdateDTO.java           # Actualización por WebSocket
+│   ├── GameResultsDTO.java          # Resultados finales
+│   ├── GameHistoryDTO.java          # Historial de partida
+│   ├── ParticipantDTO.java          # Participante con captain
+│   ├── CreateParticipantDTO.java    # Crear participante
+│   ├── CreateGameDTO.java           # Configurar partida
+│   ├── RoundDTO.java                # Envío de respuesta
+│   ├── AnswerDTO.java               # Respuesta con puntaje
+│   ├── QuestionDTO.java             # Pregunta
+│   ├── FastMoneyDTO.java            # Estado dinero rápido
+│   ├── FastMoneyAnswerDTO.java      # Respuesta dinero rápido
+│   ├── FastMoneySubmissionDTO.java  # Envío dinero rápido
+│   ├── BuzzInDTO.java               # Buzzer face-off
+│   ├── PlayerStatsDTO.java          # Estadísticas de jugador
+│   ├── RegisterDTO.java             # Registro de usuario
+│   └── ErrorResponse.java           # Error estandarizado
 ├── Repository/
 │   ├── GameRepository.java
-│   ├── GameRoundRepository.java      # Suma de puntajes por partida
-│   ├── GameQuestionRepository.java   # Evita duplicados por fecha
+│   ├── GameQuestionRepository.java
+│   ├── GameRoundRepository.java
 │   ├── QuestionRepository.java
-│   ├── AnswerRepository.java         # Búsqueda case-insensitive
-│   └── ParticipantRepository.java    # Busca por gameId
-└── Service/
-    └── GameService.java              # Lógica de negocio principal
-```
-
----
-
-## Flujo de Datos
-
-### Creación de Partida
-```
-Cliente → POST /api/games
-  → GameController.createGame()
-    → GameService.createNewGame()
-      → Crea entidad Game (status: NOT_STARTED)
-      → Selecciona 3 preguntas aleatorias de QuestionRepository
-      → Crea GameQuestion para cada una
-    ← GameDTO
-  ← 200 OK
-```
-
-### Flujo de Ronda
-```
-Cliente → POST /api/games/{id}/rounds/start
-  → RoundController.startNextRound()
-    → GameService.startNextRound()
-      → Avanza GameRoundStatus: NOT_STARTED → TURN_PLAYER1
-    ← GameDTO
-
-Cliente → POST /api/games/{id}/rounds/answer  { participantId, answerText }
-  → RoundController.submitAnswer()
-    → GameService.submitAnswer()
-      → Busca Answer en BD (case-insensitive)
-      → Si correcta: calcula score * multiplier, acumula puntos
-      → Si incorrecta: incrementa errores del equipo
-      → Si errores >= límite: cambia turno o finaliza ronda
-    ← GameQuestionDTO
-
-Cliente → POST /api/games/{id}/rounds/end
-  → RoundController.endRound()
-    → GameService.endRound()
-      → Avanza GameRoundStatus: FINISHED
-    ← RoundDTO
-
-Cliente → GET /api/games/{id}/results
-  → GameController.getFinalResults()
-    → GameService.getFinalResults()
-      → Si FINISHED: devuelve puntajes totales
-    ← GameDTO
-```
-
-### Comunicación WebSocket
-```
-Cliente → SockJS connect → /ws
-  → Suscribe a /topic/gameUpdates
-  → Envía a /app/updateGame  { GameUpdateDTO }
-    → GameWebSocketController.handleGameUpdate()
-      → Reenvía a /topic/gameUpdates
-    ← Mensaje STOMP a todos los suscriptores
+│   ├── AnswerRepository.java
+│   ├── ParticipantRepository.java
+│   ├── FastMoneyRoundRepository.java
+│   └── UserRepository.java
+├── Enum/
+│   ├── GameStatus.java              # NOT_STARTED, IN_PROGRESS, SUDDEN_DEATH, FAST_MONEY, FINISHED
+│   ├── GameRoundStatus.java         # NOT_STARTED, FACE_OFF, TURN_PLAYER1, TURN_PLAYER2, STEAL_ATTEMPT, SUDDEN_DEATH_FACE_OFF, FINISHED
+│   └── UserRole.java                # ADMIN, PLAYER
+├── Exception/
+│   ├── GameNotFoundException.java
+│   ├── GameQuestionNotFoundException.java
+│   ├── GameAlreadyFinishedException.java
+│   ├── InsufficientQuestionsException.java
+│   └── ParticipantNotFoundException.java
+├── Mapper/                          # MapStruct (compile-time)
+│   ├── GameMapper.java              # Game ↔ GameDTO
+│   ├── GameQuestionMapper.java      # GameQuestion ↔ GameQuestionDTO
+│   ├── AnswerMapper.java            # Answer ↔ AnswerDTO
+│   ├── ParticipantMapper.java       # Participant ↔ ParticipantDTO
+│   ├── FastMoneyAnswerMapper.java   # FastMoneyRound ↔ FastMoneyAnswerDTO
+│   └── GameHistoryMapper.java       # Game → GameHistoryDTO
+└── Converter/
+    └── IntArrayConverter.java       # int[] ↔ String (AttributeConverter)
 ```
 
 ---
@@ -117,32 +116,80 @@ Cliente → SockJS connect → /ws
 ## Modelo Entidad-Relación
 
 ```
+User
+  │
 Game (1) ──── (N) GameQuestion (N) ──── (1) Question (1) ──── (N) Answer
   │
-  └── (1) ──── (N) Participant
+  ├── (1) ──── (N) Participant
+  │               └── isCaptain, memberOrder
   │
-  └── (1) ──── (N) GameRound
+  ├── (1) ──── (N) GameRound
+  │               └── answerText, score, multiplier, isCorrect
+  │
+  └── (1) ──── (N) FastMoneyRound
+                  └── playerNumber, questionOrder, answerText, score
 ```
 
-- **Game:** raíz del agregado. Contiene fecha, estado, equipo1/2 errores.
-- **Question:** texto de la pregunta de encuesta.
-- **Answer:** respuesta posible con `score` (porcentaje). Pertenece a una Question.
-- **GameQuestion:** vincula una Question a un Game (evita preguntas repetidas en fechas recientes).
-- **Participant:** jugador asociado a un Game, con nombre y equipo.
-- **GameRound:** registro de un intento de respuesta de un Participant en un GameQuestion. Guarda el texto respondido, el score obtenido y el multiplicador.
+---
+
+## Frontend (Templates + JS)
+
+```
+src/main/resources/
+├── templates/
+│   ├── login.html                   # Login
+│   ├── register.html                # Registro
+│   ├── dashboard.html               # Dashboard con cards + modal configuración
+│   ├── play.html                    # Game board host-controlled (~1297 líneas)
+│   ├── history.html                 # Historial de partidas
+│   ├── stats.html                   # Estadísticas de jugadores
+│   └── admin/
+│       ├── layout.html              # Layout admin
+│       ├── questions.html           # Lista de preguntas
+│       └── question-form.html       # Formulario crear/editar
+├── static/
+│   ├── css/
+│   │   └── style.css                # Premium TV show aesthetic (~1132 líneas)
+│   └── js/
+│       ├── audio.js                 # AudioManager (Web Audio API oscillator)
+│       ├── game-timer.js            # Timer mixin (Alpine.js component)
+│       └── fast-money.js            # Fast money mixin (Alpine.js component)
+```
+
+---
+
+## Flujo del Juego
+
+```
+1. SETUP: Host crea partida → agrega miembros → selecciona capitanes
+2. FACE_OFF: 1v1 buzzer → ganador toma control
+3. TURNOS: Equipo responde en cadena → aciertos suman puntos
+4. STRIKES: 3 errores → STEAL_ATTEMPT → capitán contrario intenta robar
+5. END_ROUND: Se asignan puntos al equipo controlador
+6. Repite 1-5 por 5 rondas (x1,x1,x2,x2,x3)
+7. Si nadie llega a 300 → MUERTE SÚBITA (1 strike, robo automático)
+8. Equipo ganador → DINERO RÁPIDO (2 jugadores, 5 preguntas, bonus 200 pts)
+9. RESULTADOS: Confetti, scores finales, volver al dashboard
+```
 
 ---
 
 ## Decisiones Técnicas
 
 ### ¿Por qué MySQL y no H2?
-El proyecto está diseñado para ejecutarse en un entorno real con persistencia. H2 se recomienda solo para pruebas locales; la configuración activa apunta a MySQL.
+H2 se usa solo para pruebas. El entorno de desarrollo y producción usa MySQL. Spring Data JPA abstrae la BD.
 
-### ¿Por qué tres preguntas por partida?
-Por simplicidad inicial. En el formato televisivo real, el número de preguntas varía; este valor puede hacerse configurable en el futuro.
+### ¿Por qué MapStruct y no ModelMapper?
+MapStruct genera código en compile-time (sin reflexión, cero overhead). ModelMapper usa reflexión en runtime.
 
-### ¿Por qué WebSocket + STOMP + SockJS?
-STOMP ofrece un modelo de suscripción/tópico limpio sobre WebSocket. SockJS proporciona fallbacks automáticos (long-polling, etc.) para clientes que no soporten WebSocket nativo.
+### ¿Por qué Web Audio API en vez de archivos MP3?
+Los sonidos son tonos sintetizados con osciladores (sine waves). No dependen de archivos externos, cargan instantáneamente, y son personalizables.
+
+### ¿Por qué canvas-confetti en vez de CSS puro?
+canvas-confetti ofrece efectos superiores (fireworks, shapes), soporte de accesibilidad (`disableForReducedMotion`), y es solo 8KB vía CDN.
+
+### ¿Por qué Alpine.js y no React/Vue?
+El juego es server-rendered (Thymeleaf) con interactividad en el cliente. Alpine.js se integra directamente en HTML sin build step. React/Vue requerirían un setup de bundler adicional.
 
 ### DTOs separados de Entidades
-Se evita exponer las entidades JPA directamente al cliente. Los DTOs actúan como contratos de API, desacoplando la capa de persistencia de la de presentación.
+Se evita exponer las entidades JPA directamente al cliente. MapStruct genera los mappers en compile-time.
