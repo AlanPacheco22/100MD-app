@@ -10,6 +10,7 @@ import com.AlanPacheco.CienMD_app.Repository.GameRoundRepository;
 import com.AlanPacheco.CienMD_app.Repository.ParticipantRepository;
 import org.springframework.stereotype.Service;
 
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
@@ -65,7 +66,7 @@ public class StatsService {
     private GameHistoryDTO toHistoryDTO(Game game) {
         GameHistoryDTO dto = new GameHistoryDTO();
         dto.setId(game.getId());
-        dto.setDate(game.getDate() != null ? game.getDate().toString() : "");
+        dto.setDate(game.getDate() != null ? game.getDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) : "");
         dto.setStatus(game.getStatus().toString());
         dto.setTeam1Score(game.getTeam1Score());
         dto.setTeam2Score(game.getTeam2Score());

@@ -44,7 +44,7 @@
                         <tbody>
                             <tr th:each="game : ${games}">
                                 <td th:text="${game.id}"></td>
-                                <td th:text="${#temporals.format(game.date, 'dd/MM/yyyy HH:mm')}"></td>
+                                <td th:text="${game.date}"></td>
                                 <td>
                                     <span th:text="${game.status}" class="badge"
                                           th:classappend="${game.status == 'FINISHED'} ? 'bg-secondary' : (${game.status == 'IN_PROGRESS'} ? 'bg-success' : 'bg-warning text-dark')"></span>
