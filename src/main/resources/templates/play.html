@@ -9,6 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@6/bundles/stomp.umd.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 </head>
 <body>
 
@@ -530,7 +531,6 @@
     <!-- ============ SECTION 3: PANTALLA DE RESULTADOS ============ -->
     <div x-show="showResults" x-cloak class="container mt-4 flex-grow-1 fade-in">
         <div class="results-screen">
-            <div id="confetti-container"></div>
 
             <h2 class="mb-4 fw-bold" style="font-family: 'Orbitron', sans-serif; position: relative; z-index: 11;">¡JUEGO TERMINADO!</h2>
 
@@ -592,10 +592,14 @@
 </div>
 
 <script th:src="@{/js/audio.js}"></script>
+<script th:src="@{/js/game-timer.js}"></script>
+<script th:src="@{/js/fast-money.js}"></script>
 
 <script>
 function gameBoard() {
     return {
+        ...gameTimerMixin(),
+        ...fastMoneyMixin(),
         gameId: [[${game.id}]],
         team1Score: [[${game.team1Score}]],
         team2Score: [[${game.team2Score}]],
@@ -630,31 +634,9 @@ function gameBoard() {
         captainTeam1: null,
         captainTeam2: null,
 
-        timerEnabled: true,
-        turnTimeLimit: 10,
-        timerRemaining: 0,
-        timerInterval: null,
-        timerRunning: false,
-
         faceOffPlayer1: null,
         faceOffPlayer2: null,
         faceOffBuzzed: false,
-
-        fastMoneyPhase: 'select',
-        fastMoneyPlayer1Id: null,
-        fastMoneyPlayer2Id: null,
-        fastMoneyAnswers: ['','','','',''],
-        fastMoneyPlayer2Answers: ['','','','',''],
-        fastMoneyPlayer1Time: 15,
-        fastMoneyPlayer2Time: 20,
-        fastMoneyPlayer1Results: null,
-        fastMoneyPlayer2Results: null,
-        fastMoneyTotal: 0,
-        fastMoneyWon: false,
-        fastMoneyQuestions: [],
-        fastMoneyTimerInterval: null,
-        fastMoneyPlayer1TotalPoints: 0,
-        fastMoneyPlayer2TotalPoints: 0,
 
         get turnMessage() {
             if (this.turn === 'FACE_OFF') return '¡Cara a Cara!';
@@ -1157,21 +1139,13 @@ function gameBoard() {
         },
 
         createConfetti() {
-            const container = document.getElementById('confetti-container');
-            if (!container) return;
-            container.innerHTML = '';
-            const colors = ['#006847', '#CE1126', '#FFD700', '#FFFFFF'];
-            for (let i = 0; i < 80; i++) {
-                const confetti = document.createElement('div');
-                confetti.className = 'confetti-piece';
-                confetti.style.left = Math.random() * 100 + '%';
-                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-                confetti.style.animationDelay = Math.random() * 3 + 's';
-                confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
-                confetti.style.width = (Math.random() * 8 + 5) + 'px';
-                confetti.style.height = (Math.random() * 8 + 5) + 'px';
-                container.appendChild(confetti);
-            }
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#006847', '#CE1126', '#FFD700', '#FFFFFF'],
+                disableForReducedMotion: true
+            });
         },
 
         createNewGame() {
@@ -1193,51 +1167,6 @@ function gameBoard() {
             this.turn = game.currentRoundStatus;
             if (game.turnTimeLimit) this.turnTimeLimit = game.turnTimeLimit;
             if (game.timerEnabled !== undefined) this.timerEnabled = game.timerEnabled;
-        },
-
-        startTimer() {
-            this.stopTimer();
-            if (!this.timerEnabled) return;
-            this.timerRemaining = this.turnTimeLimit;
-            this.timerRunning = true;
-            this.timerInterval = setInterval(() => {
-                this.timerRemaining--;
-                if (this.timerRemaining <= 3 && this.timerRemaining > 0) {
-                    AudioManager.playTimerWarning();
-                } else if (this.timerRemaining > 0) {
-                    AudioManager.playTick();
-                }
-                if (this.timerRemaining <= 0) {
-                    this.stopTimer();
-                    AudioManager.playTimerEnd();
-                    this.incrementError();
-                }
-            }, 1000);
-        },
-
-        stopTimer() {
-            if (this.timerInterval) {
-                clearInterval(this.timerInterval);
-                this.timerInterval = null;
-            }
-            this.timerRunning = false;
-            this.timerRemaining = 0;
-        },
-
-        get timerProgress() {
-            if (!this.timerEnabled || this.turnTimeLimit <= 0) return 0;
-            return (this.timerRemaining / this.turnTimeLimit) * 100;
-        },
-
-        get timerStrokeDashoffset() {
-            const circumference = 2 * Math.PI * 35;
-            return circumference - (this.timerProgress / 100) * circumference;
-        },
-
-        get timerColorClass() {
-            if (this.timerRemaining <= 3) return 'timer-critical';
-            if (this.timerRemaining <= 5) return 'timer-warning';
-            return '';
         },
 
         async setCaptain(participantId, team) {
@@ -1359,121 +1288,6 @@ function gameBoard() {
             this.loading = false;
         },
 
-        async startFastMoney() {
-            if (!this.fastMoneyPlayer1Id || !this.fastMoneyPlayer2Id) return;
-            if (this.fastMoneyPlayer1Id === this.fastMoneyPlayer2Id) return;
-            this.loading = true;
-            this.fastMoneyPhase = 'player1';
-            this.fastMoneyAnswers = ['','','','',''];
-            this.fastMoneyPlayer2Answers = ['','','','',''];
-            this.fastMoneyPlayer1Results = null;
-            this.fastMoneyPlayer2Results = null;
-            this.fastMoneyTotal = 0;
-            try {
-                const res = await fetch('/api/games/' + this.gameId + '/fast-money/start', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ player1Id: Number(this.fastMoneyPlayer1Id), player2Id: Number(this.fastMoneyPlayer2Id) })
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    this.fastMoneyQuestions = data.questions || [];
-                    this.status = 'FAST_MONEY';
-                    AudioManager.playFastMoneyStart();
-                    this.startFastMoneyTimer(1);
-                }
-            } catch (e) {
-                console.error('[startFastMoney] Error:', e);
-            }
-            this.loading = false;
-        },
-
-        async submitFastMoneyPlayer1() {
-            this.loading = true;
-            try {
-                const res = await fetch('/api/games/' + this.gameId + '/fast-money/submit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ participantId: Number(this.fastMoneyPlayer1Id), answers: this.fastMoneyAnswers.filter(a => a.trim()) })
-                });
-                if (res.ok) {
-                    this.stopFastMoneyTimer();
-                    this.fastMoneyPhase = 'player2';
-                    AudioManager.playFastMoneyDing();
-                    this.startFastMoneyTimer(2);
-                }
-            } catch (e) {
-                console.error('[submitFastMoneyPlayer1] Error:', e);
-            }
-            this.loading = false;
-        },
-
-        async submitFastMoneyPlayer2() {
-            this.loading = true;
-            try {
-                const res = await fetch('/api/games/' + this.gameId + '/fast-money/submit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ participantId: Number(this.fastMoneyPlayer2Id), answers: this.fastMoneyPlayer2Answers.filter(a => a.trim()) })
-                });
-                if (res.ok) {
-                    this.stopFastMoneyTimer();
-                    const statusRes = await fetch('/api/games/' + this.gameId + '/fast-money/status');
-                    if (statusRes.ok) {
-                        const statusData = await statusRes.json();
-                        this.fastMoneyPlayer1Results = statusData.player1Answers || [];
-                        this.fastMoneyPlayer2Results = statusData.player2Answers || [];
-                        this.fastMoneyTotal = statusData.combinedTotal || 0;
-                        this.fastMoneyWon = statusData.wonBonus || false;
-                        this.fastMoneyPlayer1TotalPoints = statusData.player1TotalPoints || 0;
-                        this.fastMoneyPlayer2TotalPoints = statusData.player2TotalPoints || 0;
-                    }
-                    this.fastMoneyPhase = 'results';
-                    AudioManager.playFastMoneyEnd();
-                }
-            } catch (e) {
-                console.error('[submitFastMoneyPlayer2] Error:', e);
-            }
-            this.loading = false;
-        },
-
-        startFastMoneyTimer(player) {
-            this.stopFastMoneyTimer();
-            if (player === 1) {
-                this.fastMoneyPlayer1Time = 15;
-                this.fastMoneyTimerInterval = setInterval(() => {
-                    this.fastMoneyPlayer1Time--;
-                    if (this.fastMoneyPlayer1Time <= 5 && this.fastMoneyPlayer1Time > 0) {
-                        AudioManager.playTimerWarning();
-                    }
-                    if (this.fastMoneyPlayer1Time <= 0) {
-                        this.stopFastMoneyTimer();
-                        AudioManager.playTimerEnd();
-                        this.submitFastMoneyPlayer1();
-                    }
-                }, 1000);
-            } else {
-                this.fastMoneyPlayer2Time = 20;
-                this.fastMoneyTimerInterval = setInterval(() => {
-                    this.fastMoneyPlayer2Time--;
-                    if (this.fastMoneyPlayer2Time <= 5 && this.fastMoneyPlayer2Time > 0) {
-                        AudioManager.playTimerWarning();
-                    }
-                    if (this.fastMoneyPlayer2Time <= 0) {
-                        this.stopFastMoneyTimer();
-                        AudioManager.playTimerEnd();
-                        this.submitFastMoneyPlayer2();
-                    }
-                }, 1000);
-            }
-        },
-
-        stopFastMoneyTimer() {
-            if (this.fastMoneyTimerInterval) {
-                clearInterval(this.fastMoneyTimerInterval);
-                this.fastMoneyTimerInterval = null;
-            }
-        }
     }
 }
 </script>

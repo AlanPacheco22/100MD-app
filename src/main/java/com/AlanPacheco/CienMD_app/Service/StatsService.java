@@ -5,12 +5,12 @@ import com.AlanPacheco.CienMD_app.DTO.PlayerStatsDTO;
 import com.AlanPacheco.CienMD_app.Entity.Game;
 import com.AlanPacheco.CienMD_app.Entity.GameRound;
 import com.AlanPacheco.CienMD_app.Entity.Participant;
+import com.AlanPacheco.CienMD_app.Mapper.GameHistoryMapper;
 import com.AlanPacheco.CienMD_app.Repository.GameRepository;
 import com.AlanPacheco.CienMD_app.Repository.GameRoundRepository;
 import com.AlanPacheco.CienMD_app.Repository.ParticipantRepository;
 import org.springframework.stereotype.Service;
 
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
@@ -19,17 +19,19 @@ public class StatsService {
     private final GameRepository gameRepository;
     private final GameRoundRepository gameRoundRepository;
     private final ParticipantRepository participantRepository;
+    private final GameHistoryMapper gameHistoryMapper;
 
     public StatsService(GameRepository gameRepository, GameRoundRepository gameRoundRepository,
-                        ParticipantRepository participantRepository) {
+                        ParticipantRepository participantRepository, GameHistoryMapper gameHistoryMapper) {
         this.gameRepository = gameRepository;
         this.gameRoundRepository = gameRoundRepository;
         this.participantRepository = participantRepository;
+        this.gameHistoryMapper = gameHistoryMapper;
     }
 
     public List<GameHistoryDTO> getGameHistory() {
         return gameRepository.findAllByOrderByDateDesc().stream()
-                .map(this::toHistoryDTO)
+                .map(gameHistoryMapper::toDTO)
                 .toList();
     }
 
@@ -61,19 +63,5 @@ public class StatsService {
         });
 
         return new ArrayList<>(statsMap.values());
-    }
-
-    private GameHistoryDTO toHistoryDTO(Game game) {
-        GameHistoryDTO dto = new GameHistoryDTO();
-        dto.setId(game.getId());
-        dto.setDate(game.getDate() != null ? game.getDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) : "");
-        dto.setStatus(game.getStatus().toString());
-        dto.setTeam1Score(game.getTeam1Score());
-        dto.setTeam2Score(game.getTeam2Score());
-        dto.setTotalRounds(game.getRoundsPlayed());
-        if (game.getTeam1Score() > game.getTeam2Score()) dto.setWinner("Equipo 1");
-        else if (game.getTeam2Score() > game.getTeam1Score()) dto.setWinner("Equipo 2");
-        else dto.setWinner("Empate");
-        return dto;
     }
 }

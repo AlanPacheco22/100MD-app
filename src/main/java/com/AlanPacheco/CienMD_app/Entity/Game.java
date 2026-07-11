@@ -1,5 +1,6 @@
 package com.AlanPacheco.CienMD_app.Entity;
 
+import com.AlanPacheco.CienMD_app.Converter.IntArrayConverter;
 import com.AlanPacheco.CienMD_app.Enum.GameRoundStatus;
 import com.AlanPacheco.CienMD_app.Enum.GameStatus;
 import jakarta.persistence.*;
@@ -85,34 +86,10 @@ public class Game {
     private int turnTimeLimit = 10;
 
     @Column(name = "round_multipliers")
-    private String roundMultipliers;
+    @Convert(converter = IntArrayConverter.class)
+    private int[] roundMultipliers;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "current_game_question_id")
     private GameQuestion currentGameQuestion;
-
-    public int[] getMultipliersArray() {
-        if (roundMultipliers == null || roundMultipliers.isBlank()) {
-            return new int[]{1, 1, 2, 2, 3};
-        }
-        String[] parts = roundMultipliers.split(",");
-        int[] result = new int[parts.length];
-        for (int i = 0; i < parts.length; i++) {
-            result[i] = Integer.parseInt(parts[i].trim());
-        }
-        return result;
-    }
-
-    public void setMultipliersArray(int[] multipliers) {
-        if (multipliers == null || multipliers.length == 0) {
-            this.roundMultipliers = "1,1,2,2,3";
-        } else {
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < multipliers.length; i++) {
-                if (i > 0) sb.append(",");
-                sb.append(multipliers[i]);
-            }
-            this.roundMultipliers = sb.toString();
-        }
-    }
 }

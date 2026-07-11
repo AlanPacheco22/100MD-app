@@ -21,6 +21,9 @@ import com.AlanPacheco.CienMD_app.Exception.GameNotFoundException;
 import com.AlanPacheco.CienMD_app.Exception.GameQuestionNotFoundException;
 import com.AlanPacheco.CienMD_app.Exception.InsufficientQuestionsException;
 import com.AlanPacheco.CienMD_app.Exception.ParticipantNotFoundException;
+import com.AlanPacheco.CienMD_app.Mapper.GameMapper;
+import com.AlanPacheco.CienMD_app.Mapper.GameQuestionMapper;
+import com.AlanPacheco.CienMD_app.Mapper.ParticipantMapper;
 import com.AlanPacheco.CienMD_app.Repository.AnswerRepository;
 import com.AlanPacheco.CienMD_app.Repository.GameQuestionRepository;
 import com.AlanPacheco.CienMD_app.Repository.GameRepository;
@@ -54,11 +57,16 @@ public class GameService {
     private final ParticipantRepository participantRepository;
     private final QuestionRepository questionRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final GameMapper gameMapper;
+    private final GameQuestionMapper gameQuestionMapper;
+    private final ParticipantMapper participantMapper;
 
     public GameService(GameRepository gameRepository, GameRoundRepository gameRoundRepository,
                        GameQuestionRepository gameQuestionRepository, AnswerRepository answerRepository,
                        ParticipantRepository participantRepository, QuestionRepository questionRepository,
-                       ApplicationEventPublisher eventPublisher) {
+                       ApplicationEventPublisher eventPublisher,
+                       GameMapper gameMapper, GameQuestionMapper gameQuestionMapper,
+                       ParticipantMapper participantMapper) {
         this.gameRepository = gameRepository;
         this.gameRoundRepository = gameRoundRepository;
         this.gameQuestionRepository = gameQuestionRepository;
@@ -66,6 +74,9 @@ public class GameService {
         this.participantRepository = participantRepository;
         this.questionRepository = questionRepository;
         this.eventPublisher = eventPublisher;
+        this.gameMapper = gameMapper;
+        this.gameQuestionMapper = gameQuestionMapper;
+        this.participantMapper = participantMapper;
     }
 
     @Transactional
@@ -100,7 +111,7 @@ public class GameService {
         game.setTimerEnabled(config.isTimerEnabled());
         game.setTurnTimeLimit(config.getTurnTimeLimit());
         game.setCurrentMultiplier(multipliers[0]);
-        game.setMultipliersArray(multipliers);
+        game.setRoundMultipliers(multipliers);
         game.setControllingTeam(null);
         game = gameRepository.save(game);
         log.info("[createNewGame] Partida guardada con ID={}, status={}, targetScore={}", game.getId(), game.getStatus(), game.getTargetScore());
@@ -123,7 +134,7 @@ public class GameService {
         game = gameRepository.save(game);
         eventPublisher.publishEvent(new GameEvent("GAME_CREATED", game.getId()));
         log.info("[createNewGame] Partida {} creada exitosamente con {} preguntas asignadas", game.getId(), gameQuestions.size());
-        return mapToGameDTO(game);
+        return toGameDTO(game);
     }
 
     public GameDTO getGameById(Long gameId) {
@@ -133,14 +144,14 @@ public class GameService {
         log.debug("[getGameById] gameId={}, status={}, roundStatus={}, controllingTeam={}, currentGameQuestionId={}",
                 gameId, game.getStatus(), game.getCurrentRoundStatus(), game.getControllingTeam(),
                 game.getCurrentGameQuestion() != null ? game.getCurrentGameQuestion().getId() : "null");
-        return mapToGameDTO(game);
+        return toGameDTO(game);
     }
 
     public GameQuestionDTO getGameQuestion(Long gameId, Long questionId) {
         log.info("[getGameQuestion] gameId={}, questionId={}", gameId, questionId);
         GameQuestion gameQuestion = gameQuestionRepository.findById(questionId)
                 .orElseThrow(() -> new GameQuestionNotFoundException("Pregunta no encontrada: " + questionId));
-        GameQuestionDTO dto = mapToGameQuestionDTO(gameQuestion, gameId);
+        GameQuestionDTO dto = toGameQuestionDTO(gameQuestion, gameId);
         log.info("[getGameQuestion] Pregunta cargada: text='{}', answers={}", dto.getQuestionText(), dto.getAnswers() != null ? dto.getAnswers().size() : 0);
         return dto;
     }
@@ -191,14 +202,14 @@ public class GameService {
                     game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
                     gameRepository.save(game);
                     eventPublisher.publishEvent(new GameEvent("GAME_FINISHED", gameId));
-                    return mapToGameDTO(game);
+                    return toGameDTO(game);
                 } else {
                     game.setStatus(GameStatus.SUDDEN_DEATH);
                     game.setCurrentRoundStatus(GameRoundStatus.SUDDEN_DEATH_FACE_OFF);
                     gameRepository.save(game);
                     eventPublisher.publishEvent(new GameEvent("SUDDEN_DEATH_STARTED", gameId));
                     log.info("[startNextRound] SUDDEN_DEATH activado! team1Score={}, team2Score={}", game.getTeam1Score(), game.getTeam2Score());
-                    return mapToGameDTO(game);
+                    return toGameDTO(game);
                 }
             }
         }
@@ -227,7 +238,7 @@ public class GameService {
                 newRound, controllingTeam, game.getCurrentMultiplier(), game.getStatus(), game.getCurrentRoundStatus(),
                 game.getCurrentGameQuestion() != null ? game.getCurrentGameQuestion().getId() : "null");
 
-        return mapToGameDTO(game);
+        return toGameDTO(game);
     }
 
     @Transactional
@@ -304,7 +315,7 @@ public class GameService {
             gameRepository.save(game);
         }
 
-        return mapToGameQuestionDTO(gameQuestion, gameId);
+        return toGameQuestionDTO(gameQuestion, gameId);
     }
 
     private void handleCorrectAnswer(Game game, int points, int team) {
@@ -376,7 +387,7 @@ public class GameService {
         gameRepository.save(game);
         eventPublisher.publishEvent(new GameEvent("TURN_PASSED", gameId));
         log.info("[passTurn] Turno pasado -> STEAL_ATTEMPT. Equipo {} puede robar {} puntos", game.getControllingTeam() == 1 ? 2 : 1, game.getCurrentRoundPoints());
-        return mapToGameDTO(game);
+        return toGameDTO(game);
     }
 
     @Transactional
@@ -416,7 +427,7 @@ public class GameService {
             eventPublisher.publishEvent(new GameEvent("ANSWER_WRONG", gameId));
         }
         log.info("[incrementError] FIN - t1Errors={}, t2Errors={}, roundStatus={}", game.getTeam1Errors(), game.getTeam2Errors(), game.getCurrentRoundStatus());
-        return mapToGameDTO(game);
+        return toGameDTO(game);
     }
 
     @Transactional
@@ -457,7 +468,7 @@ public class GameService {
         }
         log.info("[endRound] Ronda finalizada. team1Score={}, team2Score={}", game.getTeam1Score(), game.getTeam2Score());
 
-        return mapToGameDTO(game);
+        return toGameDTO(game);
     }
 
     @Transactional
@@ -486,7 +497,7 @@ public class GameService {
                 .anyMatch(r -> r.getAnswerText().equalsIgnoreCase(answer.getText()));
         if (alreadyRevealed) {
             log.warn("[revealAnswer] Respuesta '{}' ya fue revelada previamente", answer.getText());
-            GameQuestionDTO dto = mapToGameQuestionDTO(gameQuestion, gameId);
+            GameQuestionDTO dto = toGameQuestionDTO(gameQuestion, gameId);
             return dto;
         }
 
@@ -535,7 +546,7 @@ public class GameService {
                 eventPublisher.publishEvent(new GameEvent("ROUND_ENDED", gameId));
             }
 
-            GameQuestionDTO dto = mapToGameQuestionDTO(gameQuestion, gameId);
+            GameQuestionDTO dto = toGameQuestionDTO(gameQuestion, gameId);
             log.info("[revealAnswer] ROBO EXITOSO! Equipo {} robó {} puntos. t1={}, t2={}", stealingTeam, totalStolen, game.getTeam1Score(), game.getTeam2Score());
             return dto;
         }
@@ -554,7 +565,7 @@ public class GameService {
 
         eventPublisher.publishEvent(new GameEvent("ANSWER_CORRECT", gameId));
 
-        GameQuestionDTO dto = mapToGameQuestionDTO(gameQuestion, gameId);
+        GameQuestionDTO dto = toGameQuestionDTO(gameQuestion, gameId);
         log.info("[revealAnswer] FIN - answerId={}, text='{}', revealed=true, points={}", answerId, answer.getText(), points);
         return dto;
     }
@@ -566,10 +577,7 @@ public class GameService {
         List<Participant> participants = participantRepository.findByGameId(gameId);
         List<ParticipantDTO> participantDTOs = participants.stream()
                 .map(p -> {
-                    ParticipantDTO dto = new ParticipantDTO();
-                    dto.setId(p.getId());
-                    dto.setName(p.getName());
-                    dto.setTeam(p.getTeam());
+                    ParticipantDTO dto = participantMapper.toDTO(p);
                     dto.setScore(gameRoundRepository.sumScoreByParticipantId(p.getId()));
                     return dto;
                 })
@@ -595,7 +603,7 @@ public class GameService {
 
     public List<GameDTO> getAllGames() {
         return gameRepository.findAll().stream()
-                .map(this::mapToGameDTO)
+                .map(this::toGameDTO)
                 .toList();
     }
 
@@ -626,11 +634,7 @@ public class GameService {
         participant = participantRepository.save(participant);
         log.info("[addParticipant] Participante creado: id={}, name='{}', team={}, order={}", participant.getId(), participant.getName(), participant.getTeam(), participant.getMemberOrder());
 
-        ParticipantDTO result = new ParticipantDTO();
-        result.setId(participant.getId());
-        result.setName(participant.getName());
-        result.setTeam(participant.getTeam());
-        result.setCaptain(participant.isCaptain());
+        ParticipantDTO result = participantMapper.toDTO(participant);
         result.setScore(0);
         return result;
     }
@@ -638,11 +642,7 @@ public class GameService {
     public List<ParticipantDTO> getParticipants(Long gameId) {
         List<ParticipantDTO> participants = participantRepository.findByGameId(gameId).stream()
                 .map(p -> {
-                    ParticipantDTO dto = new ParticipantDTO();
-                    dto.setId(p.getId());
-                    dto.setName(p.getName());
-                    dto.setTeam(p.getTeam());
-                    dto.setCaptain(p.isCaptain());
+                    ParticipantDTO dto = participantMapper.toDTO(p);
                     dto.setScore(gameRoundRepository.sumScoreByParticipantId(p.getId()));
                     return dto;
                 })
@@ -654,34 +654,8 @@ public class GameService {
         return participants;
     }
 
-    private GameDTO mapToGameDTO(Game game) {
-        GameDTO dto = new GameDTO();
-        dto.setId(game.getId());
-        dto.setDate(game.getDate());
-        dto.setStatus(game.getStatus().toString());
-        dto.setCurrentRoundStatus(game.getCurrentRoundStatus().toString());
-        dto.setTeam1Score(game.getTeam1Score());
-        dto.setTeam2Score(game.getTeam2Score());
-        dto.setTeam1Errors(game.getTeam1Errors());
-        dto.setTeam2Errors(game.getTeam2Errors());
-        dto.setCurrentRoundPoints(game.getCurrentRoundPoints());
-        dto.setRoundsPlayed(game.getRoundsPlayed());
-        dto.setTotalRounds(game.getTotalRounds());
-        dto.setTeamSize(game.getTeamSize());
-        dto.setCurrentMultiplier(game.getCurrentMultiplier());
-        dto.setControllingTeam(game.getControllingTeam());
-        dto.setTargetScore(game.getTargetScore());
-        dto.setRoundMultipliers(getMultipliersForGame(game));
-        dto.setCurrentTurnIndex(game.getCurrentTurnIndex());
-        dto.setTimerEnabled(game.isTimerEnabled());
-        dto.setTurnTimeLimit(game.getTurnTimeLimit());
-        dto.setFaceOffPlayer1(game.getFaceOffPlayer1());
-        dto.setFaceOffPlayer2(game.getFaceOffPlayer2());
-        if (game.getCurrentGameQuestion() != null) {
-            dto.setCurrentQuestionId(game.getCurrentGameQuestion().getId());
-            dto.setGameQuestionText(game.getCurrentGameQuestion().getQuestion().getText());
-            dto.setCurrentAnswers(getCurrentAnswersForQuestion(game));
-        }
+    private GameDTO toGameDTO(Game game) {
+        GameDTO dto = gameMapper.toDTO(game);
         if (game.getStatus() == GameStatus.FINISHED) {
             if (game.getTeam1Score() > game.getTeam2Score()) {
                 dto.setWinner("team1");
@@ -691,9 +665,9 @@ public class GameService {
                 dto.setWinner("draw");
             }
         }
-        log.debug("[mapToGameDTO] gameId={}, status={}, roundStatus={}, controllingTeam={}, currentQuestionId={}, team1Score={}, team2Score={}, roundPoints={}, targetScore={}",
-                dto.getId(), dto.getStatus(), dto.getCurrentRoundStatus(), dto.getControllingTeam(),
-                dto.getCurrentQuestionId(), dto.getTeam1Score(), dto.getTeam2Score(), dto.getCurrentRoundPoints(), dto.getTargetScore());
+        if (game.getCurrentGameQuestion() != null) {
+            dto.setCurrentAnswers(getCurrentAnswersForQuestion(game));
+        }
         return dto;
     }
 
@@ -701,14 +675,10 @@ public class GameService {
         if (game.getCurrentGameQuestion() == null) {
             return List.of();
         }
-        return mapToGameQuestionDTO(game.getCurrentGameQuestion(), game.getId()).getAnswers();
+        return toGameQuestionDTO(game.getCurrentGameQuestion(), game.getId()).getAnswers();
     }
 
-    private GameQuestionDTO mapToGameQuestionDTO(GameQuestion gameQuestion, Long gameId) {
-        GameQuestionDTO dto = new GameQuestionDTO();
-        dto.setId(gameQuestion.getId());
-        dto.setQuestionText(gameQuestion.getQuestion().getText());
-
+    private GameQuestionDTO toGameQuestionDTO(GameQuestion gameQuestion, Long gameId) {
         Set<Long> revealedIds = new HashSet<>();
         List<GameRound> rounds = gameRoundRepository.findByGameIdAndGameQuestionId(gameId, gameQuestion.getId());
         for (GameRound r : rounds) {
@@ -720,25 +690,11 @@ public class GameService {
                 }
             }
         }
-
-        List<Answer> answers = gameQuestion.getQuestion().getAnswers();
-        List<AnswerDTO> answerDTOs = (answers != null ? answers : List.<Answer>of()).stream()
-                .map(answer -> {
-                    AnswerDTO answerDTO = new AnswerDTO();
-                    answerDTO.setId(answer.getId());
-                    answerDTO.setText(answer.getText());
-                    answerDTO.setScore(answer.getScore());
-                    answerDTO.setRevealed(revealedIds.contains(answer.getId()));
-                    return answerDTO;
-                })
-                .toList();
-
-        dto.setAnswers(answerDTOs);
-        return dto;
+        return gameQuestionMapper.toDTOWithRevealed(gameQuestion, revealedIds);
     }
 
     private int[] getMultipliersForGame(Game game) {
-        return game.getMultipliersArray();
+        return game.getRoundMultipliers();
     }
 
     private boolean checkForEarlyWin(Game game) {
@@ -832,7 +788,7 @@ public class GameService {
         log.info("[startFaceOff] Face-off iniciado entre {} (Equipo {}) y {} (Equipo {})",
                 p1.getName(), p1.getTeam(), p2.getName(), p2.getTeam());
 
-        return mapToGameDTO(game);
+        return toGameDTO(game);
     }
 
     @Transactional
@@ -923,7 +879,7 @@ public class GameService {
         game.setFaceOffPlayer2(null);
         gameRepository.save(game);
 
-        return mapToGameDTO(game);
+        return toGameDTO(game);
     }
 
     @Transactional
@@ -949,7 +905,7 @@ public class GameService {
         eventPublisher.publishEvent(new GameEvent("SUDDEN_DEATH_FACE_OFF", gameId));
         log.info("[suddenDeathFaceOff] Face-off de muerte subita iniciado entre {} y {}", p1.getName(), p2.getName());
 
-        return mapToGameDTO(game);
+        return toGameDTO(game);
     }
 
     @Transactional
@@ -1021,7 +977,7 @@ public class GameService {
         game.setFaceOffPlayer2(null);
         gameRepository.save(game);
 
-        return mapToGameDTO(game);
+        return toGameDTO(game);
     }
 
     @Transactional
@@ -1131,6 +1087,6 @@ public class GameService {
 
         log.info("[suddenDeathAnswer] FIN - status={}, roundStatus={}, t1={}, t2={}",
                 game.getStatus(), game.getCurrentRoundStatus(), game.getTeam1Score(), game.getTeam2Score());
-        return mapToGameDTO(game);
+        return toGameDTO(game);
     }
 }

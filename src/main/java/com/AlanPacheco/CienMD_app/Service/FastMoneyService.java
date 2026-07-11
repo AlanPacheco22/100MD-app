@@ -1,6 +1,5 @@
 package com.AlanPacheco.CienMD_app.Service;
 
-import com.AlanPacheco.CienMD_app.DTO.FastMoneyAnswerDTO;
 import com.AlanPacheco.CienMD_app.DTO.FastMoneyDTO;
 import com.AlanPacheco.CienMD_app.DTO.FastMoneySubmissionDTO;
 import com.AlanPacheco.CienMD_app.Entity.Answer;
@@ -12,6 +11,7 @@ import com.AlanPacheco.CienMD_app.Entity.Question;
 import com.AlanPacheco.CienMD_app.Enum.GameStatus;
 import com.AlanPacheco.CienMD_app.Exception.GameNotFoundException;
 import com.AlanPacheco.CienMD_app.Exception.ParticipantNotFoundException;
+import com.AlanPacheco.CienMD_app.Mapper.FastMoneyAnswerMapper;
 import com.AlanPacheco.CienMD_app.Repository.AnswerRepository;
 import com.AlanPacheco.CienMD_app.Repository.FastMoneyRoundRepository;
 import com.AlanPacheco.CienMD_app.Repository.GameRepository;
@@ -44,17 +44,20 @@ public class FastMoneyService {
     private final AnswerRepository answerRepository;
     private final FastMoneyRoundRepository fastMoneyRoundRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final FastMoneyAnswerMapper fastMoneyAnswerMapper;
 
     public FastMoneyService(GameRepository gameRepository, ParticipantRepository participantRepository,
                            QuestionRepository questionRepository, AnswerRepository answerRepository,
                            FastMoneyRoundRepository fastMoneyRoundRepository,
-                           ApplicationEventPublisher eventPublisher) {
+                           ApplicationEventPublisher eventPublisher,
+                           FastMoneyAnswerMapper fastMoneyAnswerMapper) {
         this.gameRepository = gameRepository;
         this.participantRepository = participantRepository;
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
         this.fastMoneyRoundRepository = fastMoneyRoundRepository;
         this.eventPublisher = eventPublisher;
+        this.fastMoneyAnswerMapper = fastMoneyAnswerMapper;
     }
 
     @Transactional
@@ -236,23 +239,9 @@ public class FastMoneyService {
         dto.setCombinedTotal(total1 + total2);
         dto.setWonBonus(dto.getCombinedTotal() >= BONUS_TARGET);
 
-        dto.setPlayer1Answers(allRounds.stream().map(r -> {
-            FastMoneyAnswerDTO answerDTO = new FastMoneyAnswerDTO();
-            answerDTO.setQuestion(r.getQuestion().getText());
-            answerDTO.setAnswer(r.getAnswerText());
-            answerDTO.setPoints(r.getPoints());
-            answerDTO.setCorrect(r.isCorrect());
-            return answerDTO;
-        }).toList());
+        dto.setPlayer1Answers(allRounds.stream().map(fastMoneyAnswerMapper::toDTO).toList());
 
-        dto.setPlayer2Answers(player2Rounds.stream().map(r -> {
-            FastMoneyAnswerDTO answerDTO = new FastMoneyAnswerDTO();
-            answerDTO.setQuestion(r.getQuestion().getText());
-            answerDTO.setAnswer(r.getAnswerText());
-            answerDTO.setPoints(r.getPoints());
-            answerDTO.setCorrect(r.isCorrect());
-            return answerDTO;
-        }).toList());
+        dto.setPlayer2Answers(player2Rounds.stream().map(fastMoneyAnswerMapper::toDTO).toList());
 
         return dto;
     }
