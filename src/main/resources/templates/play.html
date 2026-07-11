@@ -756,7 +756,6 @@ function gameBoard() {
                         console.log('[WS] -> ' + update.event + ', recargando pregunta...');
                         this.loadCurrentQuestion();
                         AudioManager.playStealAlert();
-                    }
                     } else if (update.event === 'ROUND_STARTED') {
                         console.log('[WS] -> ROUND_STARTED');
                         this.roundFinished = false;
@@ -787,7 +786,6 @@ function gameBoard() {
                     } else if (update.event === 'SUDDEN_DEATH_STARTED') {
                         console.log('[WS] -> SUDDEN_DEATH_STARTED');
                         AudioManager.playSuddenDeath();
-                    }
                     } else if (update.event === 'SUDDEN_DEATH_FACE_OFF') {
                         console.log('[WS] -> SUDDEN_DEATH_FACE_OFF');
                         this.faceOffBuzzed = false;
