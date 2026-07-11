@@ -55,7 +55,10 @@ public class Game {
     private int roundsPlayed = 0;
 
     @Column(name = "total_rounds", nullable = false)
-    private int totalRounds = 3;
+    private int totalRounds = 5;
+
+    @Column(name = "target_score", nullable = false)
+    private int targetScore = 300;
 
     @Column(name = "team_size", nullable = false)
     private int teamSize = 5;
@@ -65,6 +68,21 @@ public class Game {
 
     @Column(name = "controlling_team")
     private Integer controllingTeam;
+
+    @Column(name = "current_turn_index", nullable = false)
+    private int currentTurnIndex = 0;
+
+    @Column(name = "face_off_player1")
+    private Long faceOffPlayer1;
+
+    @Column(name = "face_off_player2")
+    private Long faceOffPlayer2;
+
+    @Column(name = "timer_enabled", nullable = false)
+    private boolean timerEnabled = true;
+
+    @Column(name = "turn_time_limit", nullable = false)
+    private int turnTimeLimit = 10;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "current_game_question_id")

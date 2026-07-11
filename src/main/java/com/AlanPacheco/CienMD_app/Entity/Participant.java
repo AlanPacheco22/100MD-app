@@ -29,4 +29,7 @@ public class Participant {
 
     @Column(name = "member_order", nullable = false)
     private int memberOrder = 0;
+
+    @Column(name = "is_captain", nullable = false)
+    private boolean captain = false;
 }

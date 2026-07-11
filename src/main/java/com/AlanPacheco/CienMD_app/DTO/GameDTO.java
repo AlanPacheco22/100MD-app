@@ -24,6 +24,11 @@ public class GameDTO {
     private int teamSize;
     private int currentMultiplier;
     private Integer controllingTeam;
+    private int targetScore;
+    private int[] roundMultipliers;
+    private int currentTurnIndex;
+    private boolean timerEnabled;
+    private int turnTimeLimit;
     private String winner;
     private String gameQuestionText;
     private List<AnswerDTO> currentAnswers;

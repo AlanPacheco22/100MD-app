@@ -1,5 +1,6 @@
 package com.AlanPacheco.CienMD_app.Controller;
 
+import com.AlanPacheco.CienMD_app.DTO.BuzzInDTO;
 import com.AlanPacheco.CienMD_app.DTO.CreateGameDTO;
 import com.AlanPacheco.CienMD_app.DTO.GameDTO;
 import com.AlanPacheco.CienMD_app.DTO.GameQuestionDTO;
@@ -122,5 +123,58 @@ public class GameController {
             @PathVariable Long gameId, @PathVariable Long answerId) {
         log.info("[API POST /api/games/{}/rounds/reveal/{}] Revelando respuesta", gameId, answerId);
         return ResponseEntity.ok(gameService.revealAnswer(gameId, answerId));
+    }
+
+    @PostMapping("/{gameId}/faceoff/start")
+    public ResponseEntity<GameDTO> startFaceOff(
+            @PathVariable Long gameId,
+            @RequestBody java.util.Map<String, Long> body) {
+        log.info("[API POST /api/games/{}/faceoff/start] player1={}, player2={}",
+                gameId, body.get("player1Id"), body.get("player2Id"));
+        GameDTO result = gameService.startFaceOff(gameId, body.get("player1Id"), body.get("player2Id"));
+        log.info("[API POST /api/games/{}/faceoff/start] Face-off iniciado: roundStatus={}", gameId, result.getCurrentRoundStatus());
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/{gameId}/faceoff/buzz")
+    public ResponseEntity<GameDTO> buzzIn(
+            @PathVariable Long gameId,
+            @RequestBody @Valid BuzzInDTO buzzInDTO) {
+        log.info("[API POST /api/games/{}/faceoff/buzz] participantId={}, answerText='{}'",
+                gameId, buzzInDTO.getParticipantId(), buzzInDTO.getAnswerText());
+        GameDTO result = gameService.buzzIn(gameId, buzzInDTO.getParticipantId(), buzzInDTO.getAnswerText());
+        log.info("[API POST /api/games/{}/faceoff/buzz] Buzz procesado: roundStatus={}, controllingTeam={}",
+                gameId, result.getCurrentRoundStatus(), result.getControllingTeam());
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/{gameId}/sudden-death/faceoff")
+    public ResponseEntity<GameDTO> suddenDeathFaceOff(
+            @PathVariable Long gameId,
+            @RequestBody java.util.Map<String, Long> body) {
+        log.info("[API POST /api/games/{}/sudden-death/faceoff] player1={}, player2={}",
+                gameId, body.get("player1Id"), body.get("player2Id"));
+        GameDTO result = gameService.suddenDeathFaceOff(gameId, body.get("player1Id"), body.get("player2Id"));
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/{gameId}/sudden-death/buzz")
+    public ResponseEntity<GameDTO> suddenDeathBuzzIn(
+            @PathVariable Long gameId,
+            @RequestBody @Valid BuzzInDTO buzzInDTO) {
+        log.info("[API POST /api/games/{}/sudden-death/buzz] participantId={}, answerText='{}'",
+                gameId, buzzInDTO.getParticipantId(), buzzInDTO.getAnswerText());
+        GameDTO result = gameService.suddenDeathBuzzIn(gameId, buzzInDTO.getParticipantId(), buzzInDTO.getAnswerText());
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/{gameId}/sudden-death/answer")
+    public ResponseEntity<GameDTO> suddenDeathAnswer(
+            @PathVariable Long gameId,
+            @RequestBody @Valid RoundDTO roundDTO) {
+        log.info("[API POST /api/games/{}/sudden-death/answer] participantId={}, answerText='{}'",
+                gameId, roundDTO.getParticipantId(), roundDTO.getAnswerText());
+        GameDTO result = gameService.suddenDeathAnswer(gameId, roundDTO);
+        return ResponseEntity.ok(result);
     }
 }

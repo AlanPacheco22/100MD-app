@@ -70,7 +70,7 @@ public class GameService {
 
     @Transactional
     public GameDTO createNewGame(CreateGameDTO config) {
-        log.info("[createNewGame] Iniciando creacion de nueva partida. totalRounds={}, teamSize={}", config.getTotalRounds(), config.getTeamSize());
+        log.info("[createNewGame] Iniciando creacion de nueva partida. totalRounds={}, teamSize={}, targetScore={}", config.getTotalRounds(), config.getTeamSize(), config.getTargetScore());
         long questionCount = questionRepository.count();
         log.info("[createNewGame] Preguntas disponibles en BD: {}", questionCount);
         if (questionCount < config.getTotalRounds()) {
@@ -81,7 +81,7 @@ public class GameService {
 
         int[] multipliers = config.getMultipliers();
         if (multipliers == null || multipliers.length == 0) {
-            multipliers = new int[]{1, 1, 2};
+            multipliers = new int[]{1, 1, 2, 2, 3};
         }
 
         Game game = new Game();
@@ -96,10 +96,13 @@ public class GameService {
         game.setRoundsPlayed(0);
         game.setTotalRounds(config.getTotalRounds());
         game.setTeamSize(config.getTeamSize());
+        game.setTargetScore(config.getTargetScore());
+        game.setTimerEnabled(config.isTimerEnabled());
+        game.setTurnTimeLimit(config.getTurnTimeLimit());
         game.setCurrentMultiplier(multipliers[0]);
         game.setControllingTeam(null);
         game = gameRepository.save(game);
-        log.info("[createNewGame] Partida guardada con ID={}, status={}", game.getId(), game.getStatus());
+        log.info("[createNewGame] Partida guardada con ID={}, status={}, targetScore={}", game.getId(), game.getStatus(), game.getTargetScore());
 
         List<Question> allQuestions = questionRepository.findAll();
         Collections.shuffle(allQuestions);
@@ -181,12 +184,21 @@ public class GameService {
                 game.setCurrentGameQuestion(gameQuestions.get(currentIndex + 1));
                 log.info("[startNextRound] Nueva pregunta asignada: gameQuestionId={}", gameQuestions.get(currentIndex + 1).getId());
             } else {
-                log.info("[startNextRound] No hay mas preguntas, terminando partida gameId={}", gameId);
-                game.setStatus(GameStatus.FINISHED);
-                game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
-                gameRepository.save(game);
-                eventPublisher.publishEvent(new GameEvent("GAME_FINISHED", gameId));
-                return mapToGameDTO(game);
+                log.info("[startNextRound] No hay mas preguntas. Verificando si hay ganador o muerte subita. gameId={}", gameId);
+                if (game.getTeam1Score() >= game.getTargetScore() || game.getTeam2Score() >= game.getTargetScore()) {
+                    game.setStatus(GameStatus.FINISHED);
+                    game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
+                    gameRepository.save(game);
+                    eventPublisher.publishEvent(new GameEvent("GAME_FINISHED", gameId));
+                    return mapToGameDTO(game);
+                } else {
+                    game.setStatus(GameStatus.SUDDEN_DEATH);
+                    game.setCurrentRoundStatus(GameRoundStatus.SUDDEN_DEATH_FACE_OFF);
+                    gameRepository.save(game);
+                    eventPublisher.publishEvent(new GameEvent("SUDDEN_DEATH_STARTED", gameId));
+                    log.info("[startNextRound] SUDDEN_DEATH activado! team1Score={}, team2Score={}", game.getTeam1Score(), game.getTeam2Score());
+                    return mapToGameDTO(game);
+                }
             }
         }
 
@@ -207,6 +219,7 @@ public class GameService {
         game.setTeam1Errors(0);
         game.setTeam2Errors(0);
         game.setCurrentRoundPoints(0);
+        game.setCurrentTurnIndex(0);
         gameRepository.save(game);
         eventPublisher.publishEvent(new GameEvent("ROUND_STARTED", gameId));
         log.info("[startNextRound] Ronda {} iniciada. controllingTeam={}, multiplier={}, status={}, roundStatus={}, questionId={}",
@@ -279,8 +292,16 @@ public class GameService {
                 game.getTeam1Score(), game.getTeam2Score(), game.getTeam1Errors(), game.getTeam2Errors(),
                 game.getCurrentRoundStatus(), game.getCurrentRoundPoints());
 
+        advanceToNextPlayer(game, participant.getTeam());
+
         gameRoundRepository.save(round);
-        gameRepository.save(game);
+
+        if (checkForEarlyWin(game)) {
+            gameRepository.save(game);
+            eventPublisher.publishEvent(new GameEvent("GAME_FINISHED", gameId));
+        } else {
+            gameRepository.save(game);
+        }
 
         return mapToGameQuestionDTO(gameQuestion, gameId);
     }
@@ -419,8 +440,15 @@ public class GameService {
 
         game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
         game.setCurrentRoundPoints(0);
-        gameRepository.save(game);
-        eventPublisher.publishEvent(new GameEvent("ROUND_ENDED", gameId));
+
+        if (checkForEarlyWin(game)) {
+            gameRepository.save(game);
+            eventPublisher.publishEvent(new GameEvent("ROUND_ENDED", gameId));
+            eventPublisher.publishEvent(new GameEvent("GAME_FINISHED", gameId));
+        } else {
+            gameRepository.save(game);
+            eventPublisher.publishEvent(new GameEvent("ROUND_ENDED", gameId));
+        }
         log.info("[endRound] Ronda finalizada. team1Score={}, team2Score={}", game.getTeam1Score(), game.getTeam2Score());
 
         return mapToGameDTO(game);
@@ -489,9 +517,17 @@ public class GameService {
             }
             game.setCurrentRoundPoints(0);
             game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
-            gameRepository.save(game);
-            eventPublisher.publishEvent(new GameEvent("ANSWER_CORRECT", gameId));
-            eventPublisher.publishEvent(new GameEvent("ROUND_ENDED", gameId));
+
+            if (checkForEarlyWin(game)) {
+                gameRepository.save(game);
+                eventPublisher.publishEvent(new GameEvent("ANSWER_CORRECT", gameId));
+                eventPublisher.publishEvent(new GameEvent("ROUND_ENDED", gameId));
+                eventPublisher.publishEvent(new GameEvent("GAME_FINISHED", gameId));
+            } else {
+                gameRepository.save(game);
+                eventPublisher.publishEvent(new GameEvent("ANSWER_CORRECT", gameId));
+                eventPublisher.publishEvent(new GameEvent("ROUND_ENDED", gameId));
+            }
 
             GameQuestionDTO dto = mapToGameQuestionDTO(gameQuestion, gameId);
             log.info("[revealAnswer] ROBO EXITOSO! Equipo {} robó {} puntos. t1={}, t2={}", stealingTeam, totalStolen, game.getTeam1Score(), game.getTeam2Score());
@@ -626,6 +662,11 @@ public class GameService {
         dto.setTeamSize(game.getTeamSize());
         dto.setCurrentMultiplier(game.getCurrentMultiplier());
         dto.setControllingTeam(game.getControllingTeam());
+        dto.setTargetScore(game.getTargetScore());
+        dto.setRoundMultipliers(getMultipliersForGame(game));
+        dto.setCurrentTurnIndex(game.getCurrentTurnIndex());
+        dto.setTimerEnabled(game.isTimerEnabled());
+        dto.setTurnTimeLimit(game.getTurnTimeLimit());
         if (game.getCurrentGameQuestion() != null) {
             dto.setCurrentQuestionId(game.getCurrentGameQuestion().getId());
             dto.setGameQuestionText(game.getCurrentGameQuestion().getQuestion().getText());
@@ -640,9 +681,9 @@ public class GameService {
                 dto.setWinner("draw");
             }
         }
-        log.debug("[mapToGameDTO] gameId={}, status={}, roundStatus={}, controllingTeam={}, currentQuestionId={}, team1Score={}, team2Score={}, roundPoints={}",
+        log.debug("[mapToGameDTO] gameId={}, status={}, roundStatus={}, controllingTeam={}, currentQuestionId={}, team1Score={}, team2Score={}, roundPoints={}, targetScore={}",
                 dto.getId(), dto.getStatus(), dto.getCurrentRoundStatus(), dto.getControllingTeam(),
-                dto.getCurrentQuestionId(), dto.getTeam1Score(), dto.getTeam2Score(), dto.getCurrentRoundPoints());
+                dto.getCurrentQuestionId(), dto.getTeam1Score(), dto.getTeam2Score(), dto.getCurrentRoundPoints(), dto.getTargetScore());
         return dto;
     }
 
@@ -699,5 +740,361 @@ public class GameService {
             }
         }
         return multipliers;
+    }
+
+    private boolean checkForEarlyWin(Game game) {
+        int target = game.getTargetScore();
+        if (game.getTeam1Score() >= target || game.getTeam2Score() >= target) {
+            game.setStatus(GameStatus.FINISHED);
+            game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
+            log.info("[checkForEarlyWin] Equipo alcanzo targetScore={}. team1Score={}, team2Score={}. Juego terminado.",
+                    target, game.getTeam1Score(), game.getTeam2Score());
+            return true;
+        }
+        return false;
+    }
+
+    private void advanceToNextPlayer(Game game, int team) {
+        if (game.getCurrentRoundStatus() == GameRoundStatus.STEAL_ATTEMPT ||
+                game.getCurrentRoundStatus() == GameRoundStatus.FINISHED) {
+            return;
+        }
+
+        List<Participant> teamMembers = participantRepository.findByGameId(game.getId()).stream()
+                .filter(p -> p.getTeam() == team)
+                .sorted((a, b) -> Integer.compare(a.getMemberOrder(), b.getMemberOrder()))
+                .toList();
+
+        if (teamMembers.isEmpty()) {
+            return;
+        }
+
+        int nextIndex = (game.getCurrentTurnIndex() + 1) % teamMembers.size();
+        game.setCurrentTurnIndex(nextIndex);
+        log.info("[advanceToNextPlayer] Equipo {} avanza al siguiente jugador. currentTurnIndex={}", team, nextIndex);
+    }
+
+    @Transactional
+    public GameDTO startFaceOff(Long gameId, Long player1Id, Long player2Id) {
+        log.info("[startFaceOff] gameId={}, player1Id={}, player2Id={}", gameId, player1Id, player2Id);
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
+
+        if (game.getStatus() != GameStatus.IN_PROGRESS) {
+            throw new IllegalStateException("La partida debe estar en progreso para iniciar face-off");
+        }
+
+        if (game.getCurrentRoundStatus() != GameRoundStatus.NOT_STARTED &&
+                game.getCurrentRoundStatus() != GameRoundStatus.FINISHED) {
+            throw new IllegalStateException("No se puede iniciar face-off durante una ronda activa");
+        }
+
+        Participant p1 = participantRepository.findById(player1Id)
+                .orElseThrow(() -> new ParticipantNotFoundException("Jugador 1 no encontrado: " + player1Id));
+        Participant p2 = participantRepository.findById(player2Id)
+                .orElseThrow(() -> new ParticipantNotFoundException("Jugador 2 no encontrado: " + player2Id));
+
+        if (p1.getTeam() == p2.getTeam()) {
+            throw new IllegalStateException("Los jugadores deben ser de equipos diferentes");
+        }
+
+        game.setFaceOffPlayer1(player1Id);
+        game.setFaceOffPlayer2(player2Id);
+        game.setCurrentRoundStatus(GameRoundStatus.FACE_OFF);
+        gameRepository.save(game);
+
+        eventPublisher.publishEvent(new GameEvent("FACE_OFF_STARTED", gameId));
+        log.info("[startFaceOff] Face-off iniciado entre {} (Equipo {}) y {} (Equipo {})",
+                p1.getName(), p1.getTeam(), p2.getName(), p2.getTeam());
+
+        return mapToGameDTO(game);
+    }
+
+    @Transactional
+    public GameDTO buzzIn(Long gameId, Long participantId, String answerText) {
+        log.info("[buzzIn] gameId={}, participantId={}, answerText='{}'", gameId, participantId, answerText);
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
+
+        if (game.getCurrentRoundStatus() != GameRoundStatus.FACE_OFF) {
+            throw new IllegalStateException("No hay face-off activo");
+        }
+
+        Participant participant = participantRepository.findById(participantId)
+                .orElseThrow(() -> new ParticipantNotFoundException("Participante no encontrado: " + participantId));
+
+        if (participant.getId() != game.getFaceOffPlayer1() && participant.getId() != game.getFaceOffPlayer2()) {
+            throw new IllegalStateException("Solo los jugadores del face-off pueden responder");
+        }
+
+        GameQuestion gameQuestion = game.getCurrentGameQuestion();
+        if (gameQuestion == null) {
+            throw new IllegalStateException("No hay pregunta activa");
+        }
+
+        Answer answer = answerRepository.findByQuestionIdAndTextIgnoreCase(
+                gameQuestion.getQuestion().getId(), answerText);
+
+        if (answer != null) {
+            List<Answer> allAnswers = gameQuestion.getQuestion().getAnswers();
+            int answerRank = allAnswers.indexOf(answer);
+
+            if (answerRank == 0) {
+                int controllingTeam = participant.getTeam();
+                game.setControllingTeam(controllingTeam);
+                game.setCurrentRoundStatus(
+                        controllingTeam == 1 ? GameRoundStatus.TURN_PLAYER1 : GameRoundStatus.TURN_PLAYER2
+                );
+                game.setCurrentTurnIndex(0);
+                log.info("[buzzIn] RESPUESTA #1! Equipo {} toma control", controllingTeam);
+            } else {
+                int otherTeam = participant.getTeam() == 1 ? 2 : 1;
+                game.setControllingTeam(otherTeam);
+                game.setCurrentRoundStatus(
+                        otherTeam == 1 ? GameRoundStatus.TURN_PLAYER1 : GameRoundStatus.TURN_PLAYER2
+                );
+                game.setCurrentTurnIndex(0);
+                log.info("[buzzIn] Respuesta rank={} (no es #1). Equipo {} toma control", answerRank + 1, otherTeam);
+            }
+
+            int multiplier = game.getCurrentMultiplier();
+            int points = answer.getScore() * multiplier;
+            game.setCurrentRoundPoints(points);
+
+            GameRound round = new GameRound();
+            round.setGame(game);
+            round.setParticipant(participant);
+            round.setGameQuestion(gameQuestion);
+            round.setAnswerText(answerText);
+            round.setScore(points);
+            round.setCorrect(true);
+            round.setMultiplier(multiplier);
+            gameRoundRepository.save(round);
+
+            eventPublisher.publishEvent(new GameEvent("ANSWER_CORRECT", gameId));
+        } else {
+            log.info("[buzzIn] RESPUESTA INCORRECTA: '{}'. Face-off continúa", answerText);
+
+            GameRound round = new GameRound();
+            round.setGame(game);
+            round.setParticipant(participant);
+            round.setGameQuestion(gameQuestion);
+            round.setAnswerText(answerText);
+            round.setScore(0);
+            round.setCorrect(false);
+            round.setMultiplier(game.getCurrentMultiplier());
+            gameRoundRepository.save(round);
+
+            eventPublisher.publishEvent(new GameEvent("ANSWER_WRONG", gameId));
+        }
+
+        game.setFaceOffPlayer1(null);
+        game.setFaceOffPlayer2(null);
+        gameRepository.save(game);
+
+        return mapToGameDTO(game);
+    }
+
+    @Transactional
+    public GameDTO suddenDeathFaceOff(Long gameId, Long player1Id, Long player2Id) {
+        log.info("[suddenDeathFaceOff] gameId={}, player1Id={}, player2Id={}", gameId, player1Id, player2Id);
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
+
+        if (game.getStatus() != GameStatus.SUDDEN_DEATH) {
+            throw new IllegalStateException("La partida no está en Muerte Súbita");
+        }
+
+        Participant p1 = participantRepository.findById(player1Id)
+                .orElseThrow(() -> new ParticipantNotFoundException("Jugador 1 no encontrado: " + player1Id));
+        Participant p2 = participantRepository.findById(player2Id)
+                .orElseThrow(() -> new ParticipantNotFoundException("Jugador 2 no encontrado: " + player2Id));
+
+        game.setFaceOffPlayer1(player1Id);
+        game.setFaceOffPlayer2(player2Id);
+        game.setCurrentRoundStatus(GameRoundStatus.SUDDEN_DEATH_FACE_OFF);
+        gameRepository.save(game);
+
+        eventPublisher.publishEvent(new GameEvent("SUDDEN_DEATH_FACE_OFF", gameId));
+        log.info("[suddenDeathFaceOff] Face-off de muerte subita iniciado entre {} y {}", p1.getName(), p2.getName());
+
+        return mapToGameDTO(game);
+    }
+
+    @Transactional
+    public GameDTO suddenDeathBuzzIn(Long gameId, Long participantId, String answerText) {
+        log.info("[suddenDeathBuzzIn] gameId={}, participantId={}, answerText='{}'", gameId, participantId, answerText);
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
+
+        if (game.getStatus() != GameStatus.SUDDEN_DEATH) {
+            throw new IllegalStateException("La partida no está en Muerte Súbita");
+        }
+
+        Participant participant = participantRepository.findById(participantId)
+                .orElseThrow(() -> new ParticipantNotFoundException("Participante no encontrado: " + participantId));
+
+        GameQuestion gameQuestion = game.getCurrentGameQuestion();
+        if (gameQuestion == null) {
+            throw new IllegalStateException("No hay pregunta activa");
+        }
+
+        Answer answer = answerRepository.findByQuestionIdAndTextIgnoreCase(
+                gameQuestion.getQuestion().getId(), answerText);
+
+        if (answer != null) {
+            int controllingTeam = participant.getTeam();
+            game.setControllingTeam(controllingTeam);
+            game.setCurrentRoundStatus(
+                    controllingTeam == 1 ? GameRoundStatus.TURN_PLAYER1 : GameRoundStatus.TURN_PLAYER2
+            );
+            game.setCurrentTurnIndex(0);
+            game.setCurrentRoundPoints(answer.getScore() * game.getCurrentMultiplier());
+
+            GameRound round = new GameRound();
+            round.setGame(game);
+            round.setParticipant(participant);
+            round.setGameQuestion(gameQuestion);
+            round.setAnswerText(answerText);
+            round.setScore(answer.getScore() * game.getCurrentMultiplier());
+            round.setCorrect(true);
+            round.setMultiplier(game.getCurrentMultiplier());
+            gameRoundRepository.save(round);
+
+            eventPublisher.publishEvent(new GameEvent("ANSWER_CORRECT", gameId));
+            log.info("[suddenDeathBuzzIn] Respuesta correcta! Equipo {} toma control", controllingTeam);
+        } else {
+            int otherTeam = participant.getTeam() == 1 ? 2 : 1;
+            game.setControllingTeam(otherTeam);
+            game.setCurrentRoundStatus(
+                    otherTeam == 1 ? GameRoundStatus.TURN_PLAYER1 : GameRoundStatus.TURN_PLAYER2
+            );
+            game.setCurrentTurnIndex(0);
+            game.setCurrentRoundPoints(0);
+
+            GameRound round = new GameRound();
+            round.setGame(game);
+            round.setParticipant(participant);
+            round.setGameQuestion(gameQuestion);
+            round.setAnswerText(answerText);
+            round.setScore(0);
+            round.setCorrect(false);
+            round.setMultiplier(game.getCurrentMultiplier());
+            gameRoundRepository.save(round);
+
+            eventPublisher.publishEvent(new GameEvent("ANSWER_WRONG", gameId));
+            log.info("[suddenDeathBuzzIn] Respuesta incorrecta. Equipo {} toma control", otherTeam);
+        }
+
+        game.setFaceOffPlayer1(null);
+        game.setFaceOffPlayer2(null);
+        gameRepository.save(game);
+
+        return mapToGameDTO(game);
+    }
+
+    @Transactional
+    public GameDTO suddenDeathAnswer(Long gameId, RoundDTO roundDTO) {
+        log.info("[suddenDeathAnswer] gameId={}, participantId={}, answerText='{}'", gameId, roundDTO.getParticipantId(), roundDTO.getAnswerText());
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
+
+        if (game.getStatus() != GameStatus.SUDDEN_DEATH) {
+            throw new IllegalStateException("La partida no está en Muerte Súbita");
+        }
+
+        Participant participant = participantRepository.findById(roundDTO.getParticipantId())
+                .orElseThrow(() -> new ParticipantNotFoundException("Participante no encontrado"));
+
+        GameQuestion gameQuestion = game.getCurrentGameQuestion();
+        if (gameQuestion == null) {
+            throw new IllegalStateException("No hay pregunta activa");
+        }
+
+        Answer answer = answerRepository.findByQuestionIdAndTextIgnoreCase(
+                gameQuestion.getQuestion().getId(), roundDTO.getAnswerText());
+
+        GameRound round = new GameRound();
+        round.setGame(game);
+        round.setParticipant(participant);
+        round.setGameQuestion(gameQuestion);
+        round.setAnswerText(roundDTO.getAnswerText());
+        round.setMultiplier(game.getCurrentMultiplier());
+
+        if (answer != null) {
+            int points = answer.getScore() * game.getCurrentMultiplier();
+            round.setScore(points);
+            round.setCorrect(true);
+
+            if (game.getCurrentRoundStatus() == GameRoundStatus.STEAL_ATTEMPT) {
+                int stealingTeam = (game.getControllingTeam() == 1) ? 2 : 1;
+                int totalStolen = game.getCurrentRoundPoints() + points;
+                if (stealingTeam == 1) {
+                    game.setTeam1Score(game.getTeam1Score() + totalStolen);
+                } else {
+                    game.setTeam2Score(game.getTeam2Score() + totalStolen);
+                }
+                game.setCurrentRoundPoints(0);
+                game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
+                game.setStatus(GameStatus.FINISHED);
+
+                gameRoundRepository.save(round);
+                gameRepository.save(game);
+
+                eventPublisher.publishEvent(new GameEvent("ANSWER_CORRECT", gameId));
+                eventPublisher.publishEvent(new GameEvent("SUDDEN_DEATH_WON", gameId));
+                eventPublisher.publishEvent(new GameEvent("GAME_FINISHED", gameId));
+            } else {
+                game.setCurrentRoundPoints(game.getCurrentRoundPoints() + points);
+                advanceToNextPlayer(game, participant.getTeam());
+
+                gameRoundRepository.save(round);
+                gameRepository.save(game);
+
+                eventPublisher.publishEvent(new GameEvent("ANSWER_CORRECT", gameId));
+            }
+        } else {
+            round.setScore(0);
+            round.setCorrect(false);
+
+            if (game.getCurrentRoundStatus() == GameRoundStatus.STEAL_ATTEMPT) {
+                if (game.getControllingTeam() != null) {
+                    if (game.getControllingTeam() == 1) {
+                        game.setTeam1Score(game.getTeam1Score() + game.getCurrentRoundPoints());
+                    } else {
+                        game.setTeam2Score(game.getTeam2Score() + game.getCurrentRoundPoints());
+                    }
+                }
+                game.setCurrentRoundPoints(0);
+                game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
+                game.setStatus(GameStatus.FINISHED);
+
+                gameRoundRepository.save(round);
+                gameRepository.save(game);
+
+                eventPublisher.publishEvent(new GameEvent("ANSWER_WRONG", gameId));
+                eventPublisher.publishEvent(new GameEvent("SUDDEN_DEATH_LOST", gameId));
+                eventPublisher.publishEvent(new GameEvent("GAME_FINISHED", gameId));
+            } else {
+                game.setTeam1Errors(game.getTeam1Errors() + 1);
+
+                gameRoundRepository.save(round);
+
+                if (game.getTeam1Errors() >= 1) {
+                    int stealingTeam = (game.getControllingTeam() == 1) ? 2 : 1;
+                    game.setCurrentRoundStatus(GameRoundStatus.STEAL_ATTEMPT);
+                    gameRepository.save(game);
+                    eventPublisher.publishEvent(new GameEvent("STEAL_ATTEMPT", gameId));
+                    log.info("[suddenDeathAnswer] 1 strike en muerte subita -> STEAL_ATTEMPT automático");
+                } else {
+                    gameRepository.save(game);
+                    eventPublisher.publishEvent(new GameEvent("ANSWER_WRONG", gameId));
+                }
+            }
+        }
+
+        log.info("[suddenDeathAnswer] FIN - status={}, roundStatus={}, t1={}, t2={}",
+                game.getStatus(), game.getCurrentRoundStatus(), game.getTeam1Score(), game.getTeam2Score());
+        return mapToGameDTO(game);
     }
 }
