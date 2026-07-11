@@ -684,3 +684,474 @@ body {
     letter-spacing: 1px;
     margin-top: 0.5rem;
 }
+
+/* ==================== SCREEN TRANSITIONS ==================== */
+.screen-enter {
+    animation: screenFadeIn 0.5s ease-out;
+}
+
+.screen-exit {
+    animation: screenFadeOut 0.3s ease-in forwards;
+}
+
+@keyframes screenFadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes screenFadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-20px); }
+}
+
+/* ==================== TIMER COMPONENT ==================== */
+.timer-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.timer-ring {
+    position: relative;
+    width: 80px;
+    height: 80px;
+}
+
+.timer-ring svg {
+    transform: rotate(-90deg);
+    width: 80px;
+    height: 80px;
+}
+
+.timer-ring circle {
+    fill: none;
+    stroke-width: 5;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s linear, stroke 0.3s ease;
+}
+
+.timer-ring .timer-track {
+    stroke: rgba(255, 255, 255, 0.1);
+}
+
+.timer-ring .timer-progress {
+    stroke: var(--green);
+}
+
+.timer-ring.timer-warning .timer-progress {
+    stroke: #ffb340;
+}
+
+.timer-ring.timer-critical .timer-progress {
+    stroke: var(--red);
+    animation: timerPulse 0.5s ease-in-out infinite;
+}
+
+.timer-number {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 900;
+    color: white;
+}
+
+.timer-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+@keyframes timerPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.05); }
+}
+
+/* ==================== FACE-OFF SCREEN ==================== */
+.faceoff-screen {
+    background: var(--board-bg);
+    border-radius: 20px;
+    padding: 2rem;
+    text-align: center;
+    border: 2px solid rgba(255, 215, 0, 0.3);
+    animation: screenFadeIn 0.5s ease-out;
+}
+
+.faceoff-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    margin-bottom: 1.5rem;
+    animation: glowPulse 2s ease-in-out infinite;
+}
+
+.faceoff-players {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    margin: 2rem 0;
+}
+
+.faceoff-player-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 3px solid rgba(255, 255, 255, 0.15);
+    border-radius: 15px;
+    padding: 1.5rem 2rem;
+    min-width: 180px;
+    transition: all 0.3s ease;
+}
+
+.faceoff-player-card.team-1 {
+    border-color: var(--green);
+}
+
+.faceoff-player-card.team-2 {
+    border-color: var(--red);
+}
+
+.faceoff-player-card.buzzed {
+    border-color: var(--gold);
+    box-shadow: var(--glow-gold);
+    animation: buzzPulse 0.5s ease-out;
+}
+
+@keyframes buzzPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
+
+.faceoff-player-name {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-top: 0.5rem;
+}
+
+.faceoff-player-team {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.7;
+}
+
+.faceoff-vs {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.5rem;
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.faceoff-buzzer {
+    font-size: 1.3rem;
+    padding: 1rem 3rem;
+    border-radius: 50px;
+    background: linear-gradient(135deg, var(--gold), #ffaa00);
+    color: #000;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4);
+}
+
+.faceoff-buzzer:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(255, 215, 0, 0.6);
+}
+
+.faceoff-buzzer:active {
+    transform: scale(0.95);
+}
+
+.faceoff-buzzer:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ==================== SUDDEN DEATH ==================== */
+.sudden-death-screen {
+    background: linear-gradient(135deg, #1a0a0a 0%, #2d0a0a 50%, #1a0a0a 100%);
+    border-radius: 20px;
+    padding: 2rem;
+    text-align: center;
+    border: 2px solid var(--red);
+    animation: screenFadeIn 0.5s ease-out;
+}
+
+.sudden-death-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.5rem;
+    font-weight: 900;
+    color: var(--red);
+    text-shadow: 0 0 30px rgba(206, 17, 38, 0.8);
+    margin-bottom: 0.5rem;
+    animation: sdGlow 2s ease-in-out infinite;
+}
+
+@keyframes sdGlow {
+    0%, 100% { text-shadow: 0 0 20px rgba(206, 17, 38, 0.5); }
+    50% { text-shadow: 0 0 40px rgba(206, 17, 38, 1), 0 0 60px rgba(206, 17, 38, 0.5); }
+}
+
+.sudden-death-subtitle {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+}
+
+.sudden-death-strike-rule {
+    display: inline-block;
+    background: rgba(206, 17, 38, 0.2);
+    border: 2px solid var(--red);
+    border-radius: 10px;
+    padding: 0.8rem 1.5rem;
+    margin: 1rem 0;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--red);
+    animation: pulseGlowRed 2s ease-in-out infinite;
+}
+
+@keyframes pulseGlowRed {
+    0%, 100% { box-shadow: 0 0 5px rgba(206, 17, 38, 0.3); }
+    50% { box-shadow: 0 0 20px rgba(206, 17, 38, 0.6); }
+}
+
+/* ==================== FAST MONEY ==================== */
+.fast-money-screen {
+    background: linear-gradient(135deg, #0a1a0a 0%, #0a2a1a 50%, #0a1a0a 100%);
+    border-radius: 20px;
+    padding: 2rem;
+    text-align: center;
+    border: 2px solid var(--gold);
+    animation: screenFadeIn 0.5s ease-out;
+}
+
+.fast-money-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+    margin-bottom: 1rem;
+}
+
+.fast-money-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+}
+
+.fast-money-question-input {
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    color: white;
+    font-size: 1rem;
+    padding: 12px 16px;
+    width: 100%;
+    margin-bottom: 0.5rem;
+    transition: border-color 0.3s;
+}
+
+.fast-money-question-input:focus {
+    border-color: var(--gold);
+    outline: none;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
+}
+
+.fast-money-question-input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.fast-money-score-bar {
+    height: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 1rem 0;
+}
+
+.fast-money-score-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green), var(--gold));
+    border-radius: 10px;
+    transition: width 1s ease-out;
+}
+
+.fast-money-score-fill.failed {
+    background: linear-gradient(90deg, var(--red), #ff6b6b);
+}
+
+/* ==================== PLAYER CARD ==================== */
+.player-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    transition: all 0.3s ease;
+    margin-bottom: 0.5rem;
+}
+
+.player-card.active {
+    border-color: var(--gold);
+    background: rgba(255, 215, 0, 0.08);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+}
+
+.player-card-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+/* ==================== CAPTAIN BADGE ==================== */
+.captain-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: linear-gradient(135deg, var(--gold), #ffaa00);
+    color: #000;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.active-player-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: rgba(255, 215, 0, 0.15);
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    animation: activePulse 2s ease-in-out infinite;
+}
+
+/* ==================== VS DIVIDER ==================== */
+.vs-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.vs-divider::before,
+.vs-divider::after {
+    content: '';
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.3), transparent);
+}
+
+.vs-divider-text {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: var(--gold);
+}
+
+/* ==================== GLITCH TEXT ==================== */
+.glitch-text {
+    position: relative;
+    animation: glitch 3s infinite;
+}
+
+@keyframes glitch {
+    0%, 90%, 100% { transform: none; opacity: 1; }
+    91% { transform: translateX(-2px); }
+    92% { transform: translateX(2px); }
+    93% { transform: translateX(-1px); opacity: 0.8; }
+    94% { transform: translateX(1px); opacity: 1; }
+}
+
+/* ==================== MONEY RAIN ==================== */
+.money-rain {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+}
+
+.money-bill {
+    position: absolute;
+    font-size: 1.5rem;
+    animation: moneyFall linear forwards;
+    opacity: 0;
+}
+
+@keyframes moneyFall {
+    0% { transform: translateY(-50px) rotate(0deg); opacity: 0; }
+    10% { opacity: 0.7; }
+    90% { opacity: 0.7; }
+    100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+}
+
+/* ==================== RESPONSIVE EXTENSIONS ==================== */
+@media (max-width: 768px) {
+    .faceoff-players {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .faceoff-vs {
+        font-size: 1.5rem;
+    }
+
+    .faceoff-player-card {
+        min-width: 140px;
+        padding: 1rem;
+    }
+
+    .faceoff-title {
+        font-size: 1.5rem;
+    }
+
+    .sudden-death-title {
+        font-size: 1.8rem;
+    }
+
+    .fast-money-title {
+        font-size: 1.5rem;
+    }
+
+    .timer-ring {
+        width: 60px;
+        height: 60px;
+    }
+
+    .timer-ring svg {
+        width: 60px;
+        height: 60px;
+    }
+
+    .timer-number {
+        font-size: 1.1rem;
+    }
+}

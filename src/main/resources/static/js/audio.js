@@ -93,6 +93,74 @@ const AudioManager = {
         this.playTone([600], 0.02, 0.05);
     },
 
+    // Face-off buzzer: sharp electronic buzz
+    playBuzzer() {
+        if (!this.enabled) return;
+        this.ensureContext();
+        this.playTone([180, 220, 180], 0.15, 0.15);
+        setTimeout(() => this.playTone([250, 300, 250], 0.12, 0.1), 80);
+    },
+
+    // Timer tick: subtle click each second
+    playTick() {
+        if (!this.enabled) return;
+        this.ensureContext();
+        this.playTone([900], 0.03, 0.04);
+    },
+
+    // Timer warning: urgent triple tick (last 3 seconds)
+    playTimerWarning() {
+        if (!this.enabled) return;
+        this.ensureContext();
+        this.playTone([1000], 0.06, 0.06);
+        setTimeout(() => this.playTone([1000], 0.06, 0.06), 80);
+        setTimeout(() => this.playTone([1000], 0.06, 0.06), 160);
+    },
+
+    // Timer end: buzzer sound
+    playTimerEnd() {
+        if (!this.enabled) return;
+        this.ensureContext();
+        this.playTone([200, 150], 0.18, 0.3);
+        setTimeout(() => this.playTone([150, 100], 0.12, 0.2), 150);
+    },
+
+    // Fast money start: exciting fanfare
+    playFastMoneyStart() {
+        if (!this.enabled) return;
+        this.ensureContext();
+        const notes = [523, 659, 784, 1047];
+        notes.forEach((freq, i) => {
+            setTimeout(() => this.playTone([freq], 0.1, 0.2), i * 120);
+        });
+    },
+
+    // Fast money answer ding: positive chime
+    playFastMoneyDing() {
+        if (!this.enabled) return;
+        this.ensureContext();
+        this.playTone([880, 1109], 0.08, 0.15);
+    },
+
+    // Fast money end: results fanfare
+    playFastMoneyEnd() {
+        if (!this.enabled) return;
+        this.ensureContext();
+        const notes = [440, 554, 659, 880, 1047];
+        notes.forEach((freq, i) => {
+            setTimeout(() => this.playTone([freq], 0.08, 0.25), i * 150);
+        });
+    },
+
+    // Sudden death: dramatic tension sound
+    playSuddenDeath() {
+        if (!this.enabled) return;
+        this.ensureContext();
+        this.playTone([110], 0.15, 0.4);
+        setTimeout(() => this.playTone([130], 0.12, 0.3), 200);
+        setTimeout(() => this.playTone([165], 0.1, 0.5), 400);
+    },
+
     // Core tone player
     playTone(frequencies, volume, duration) {
         if (!this.ctx) return;

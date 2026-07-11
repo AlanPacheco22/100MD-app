@@ -125,13 +125,30 @@
                     </div>
                     <div class="modal-body p-4">
                         <div class="row mb-4">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="form-label fw-bold">Rondas</label>
                                 <input type="number" class="form-control" x-model.number="totalRounds" min="2" max="10" @input="updateMultipliers()">
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="form-label fw-bold">Miembros por equipo</label>
                                 <input type="number" class="form-control" x-model.number="teamSize" min="2" max="5">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Puntos para ganar</label>
+                                <input type="number" class="form-control" x-model.number="targetScore" min="100" max="1000" step="50">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Timer activado</label>
+                                <div class="form-check form-switch mt-2">
+                                    <input class="form-check-input" type="checkbox" id="timerEnabled" x-model="timerEnabled">
+                                    <label class="form-check-label" for="timerEnabled" x-text="timerEnabled ? 'Activado' : 'Desactivado'"></label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mb-4" x-show="timerEnabled">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Segundos por turno</label>
+                                <input type="number" class="form-control" x-model.number="turnTimeLimit" min="3" max="30">
                             </div>
                         </div>
 
@@ -174,9 +191,12 @@
         return {
             showModal: false,
             loading: false,
-            totalRounds: 3,
+            totalRounds: 5,
             teamSize: 5,
-            multipliers: [1, 1, 2],
+            multipliers: [1, 1, 2, 2, 3],
+            targetScore: 300,
+            timerEnabled: true,
+            turnTimeLimit: 10,
 
             updateMultipliers() {
                 const n = this.totalRounds;
@@ -198,7 +218,10 @@
                         body: JSON.stringify({
                             totalRounds: this.totalRounds,
                             teamSize: this.teamSize,
-                            multipliers: this.multipliers
+                            multipliers: this.multipliers,
+                            targetScore: this.targetScore,
+                            timerEnabled: this.timerEnabled,
+                            turnTimeLimit: this.turnTimeLimit
                         })
                     });
                     if (res.ok) {

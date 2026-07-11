@@ -33,50 +33,93 @@
             <div class="col-lg-10">
                 <div class="card" style="border-radius: 20px; overflow: hidden;">
                     <div class="card-header text-center py-4" style="background: linear-gradient(90deg, var(--green), var(--red));">
-                        <h3 class="mb-0 fw-bold" style="font-family: 'Orbitron', sans-serif;">CONFIGURAR EQUIPOS</h3>
-                        <small class="text-white-50" x-text="'Máximo ' + teamSize + ' miembros por equipo'"></small>
+                        <h3 class="mb-0 fw-bold" style="font-family: 'Orbitron', sans-serif;">
+                            <span x-show="setupStep === 1">CONFIGURAR EQUIPOS</span>
+                            <span x-show="setupStep === 2">SELECCIONAR CAPITANES</span>
+                        </h3>
+                        <small class="text-white-50" x-show="setupStep === 1" x-text="'Máximo ' + teamSize + ' miembros por equipo'"></small>
+                        <small class="text-white-50" x-show="setupStep === 2">El capitán representa al equipo en robos y muerte súbita</small>
                     </div>
                     <div class="card-body p-4">
-                        <div class="row g-4">
-                            <!-- Equipo 1 -->
-                            <div class="col-md-6">
-                                <h5 class="fw-bold mb-3" style="color: var(--green);">EQUIPO 1</h5>
-                                <template x-for="(p, idx) in team1Members" :key="'t1-'+idx">
-                                    <div class="input-group mb-2">
-                                        <span class="input-group-text" x-text="(idx + 1)"></span>
-                                        <input type="text" class="form-control" x-model="team1Members[idx]"
-                                               :placeholder="'Nombre miembro ' + (idx + 1)">
-                                        <button class="btn btn-outline-danger" @click="team1Members.splice(idx, 1)">×</button>
-                                    </div>
-                                </template>
-                                <button class="btn btn-outline-success btn-sm mt-2" @click="team1Members.push('')"
-                                        x-show="team1Members.length < teamSize">
-                                    + Agregar miembro
-                                </button>
+
+                        <!-- Step 1: Agregar miembros -->
+                        <div x-show="setupStep === 1">
+                            <div class="row g-4">
+                                <div class="col-md-6">
+                                    <h5 class="fw-bold mb-3" style="color: var(--green);">EQUIPO 1</h5>
+                                    <template x-for="(p, idx) in team1Members" :key="'t1-'+idx">
+                                        <div class="input-group mb-2">
+                                            <span class="input-group-text" x-text="(idx + 1)"></span>
+                                            <input type="text" class="form-control" x-model="team1Members[idx]"
+                                                   :placeholder="'Nombre miembro ' + (idx + 1)">
+                                            <button class="btn btn-outline-danger" @click="team1Members.splice(idx, 1)">×</button>
+                                        </div>
+                                    </template>
+                                    <button class="btn btn-outline-success btn-sm mt-2" @click="team1Members.push('')"
+                                            x-show="team1Members.length < teamSize">
+                                        + Agregar miembro
+                                    </button>
+                                </div>
+                                <div class="col-md-6">
+                                    <h5 class="fw-bold mb-3" style="color: var(--red);">EQUIPO 2</h5>
+                                    <template x-for="(p, idx) in team2Members" :key="'t2-'+idx">
+                                        <div class="input-group mb-2">
+                                            <span class="input-group-text" x-text="(idx + 1)"></span>
+                                            <input type="text" class="form-control" x-model="team2Members[idx]"
+                                                   :placeholder="'Nombre miembro ' + (idx + 1)">
+                                            <button class="btn btn-outline-danger" @click="team2Members.splice(idx, 1)">×</button>
+                                        </div>
+                                    </template>
+                                    <button class="btn btn-outline-danger btn-sm mt-2" @click="team2Members.push('')"
+                                            x-show="team2Members.length < teamSize">
+                                        + Agregar miembro
+                                    </button>
+                                </div>
                             </div>
-                            <!-- Equipo 2 -->
-                            <div class="col-md-6">
-                                <h5 class="fw-bold mb-3" style="color: var(--red);">EQUIPO 2</h5>
-                                <template x-for="(p, idx) in team2Members" :key="'t2-'+idx">
-                                    <div class="input-group mb-2">
-                                        <span class="input-group-text" x-text="(idx + 1)"></span>
-                                        <input type="text" class="form-control" x-model="team2Members[idx]"
-                                               :placeholder="'Nombre miembro ' + (idx + 1)">
-                                        <button class="btn btn-outline-danger" @click="team2Members.splice(idx, 1)">×</button>
-                                    </div>
-                                </template>
-                                <button class="btn btn-outline-danger btn-sm mt-2" @click="team2Members.push('')"
-                                        x-show="team2Members.length < teamSize">
-                                    + Agregar miembro
+                            <div class="text-center mt-4">
+                                <button class="btn btn-action primary btn-lg px-5" @click="saveParticipants(); setupStep = 2"
+                                        :disabled="loading || team1Members.filter(n => n.trim()).length < 2 || team2Members.filter(n => n.trim()).length < 2">
+                                    <span x-show="!loading">SIGUIENTE</span>
+                                    <span x-show="loading">Guardando...</span>
                                 </button>
                             </div>
                         </div>
-                        <div class="text-center mt-4">
-                            <button class="btn btn-action primary btn-lg px-5" @click="saveParticipants"
-                                    :disabled="loading || team1Members.filter(n => n.trim()).length < 2 || team2Members.filter(n => n.trim()).length < 2">
-                                <span x-show="!loading">INICIAR JUEGO</span>
-                                <span x-show="loading">Guardando...</span>
-                            </button>
+
+                        <!-- Step 2: Seleccionar capitanes -->
+                        <div x-show="setupStep === 2">
+                            <div class="row g-4">
+                                <div class="col-md-6">
+                                    <h5 class="fw-bold mb-3" style="color: var(--green);">EQUIPO 1 — Capitán</h5>
+                                    <template x-for="p in team1Participants" :key="'c1-'+p.id">
+                                        <div class="player-card" :class="{ 'active': captainTeam1 === p.id }"
+                                             @click="setCaptain(p.id, 1)" style="cursor: pointer;">
+                                            <span class="player-card-name" x-text="p.name"></span>
+                                            <span x-show="captainTeam1 === p.id" class="captain-badge">★ Capitán</span>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="col-md-6">
+                                    <h5 class="fw-bold mb-3" style="color: var(--red);">EQUIPO 2 — Capitán</h5>
+                                    <template x-for="p in team2Participants" :key="'c2-'+p.id">
+                                        <div class="player-card" :class="{ 'active': captainTeam2 === p.id }"
+                                             @click="setCaptain(p.id, 2)" style="cursor: pointer;">
+                                            <span class="player-card-name" x-text="p.name"></span>
+                                            <span x-show="captainTeam2 === p.id" class="captain-badge">★ Capitán</span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            <div class="text-center mt-4">
+                                <button class="btn btn-secondary me-2" @click="setupStep = 1">← Volver</button>
+                                <button class="btn btn-action primary btn-lg px-5" @click="saveParticipants"
+                                        :disabled="loading || !canStartGame">
+                                    <span x-show="!loading">INICIAR JUEGO</span>
+                                    <span x-show="loading">Guardando...</span>
+                                </button>
+                            </div>
+                            <div x-show="!canStartGame" class="text-center mt-2">
+                                <small class="text-secondary">Selecciona un capitán en cada equipo para continuar</small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -97,6 +140,12 @@
                         <div class="score-display" x-text="team1Score">0</div>
                         <div class="mt-1" x-show="status === 'IN_PROGRESS' && controllingTeam === 1">
                             <span class="badge bg-warning text-dark px-3 py-1">CONTROL</span>
+                        </div>
+                        <div class="mt-1" x-show="controllingTeam === 1 && activePlayerName && (turn === 'TURN_PLAYER1' || turn === 'TURN_PLAYER2')">
+                            <span class="active-player-badge">
+                                <span x-text="activePlayerName"></span>
+                                <span x-show="activePlayerIsCaptain" class="captain-badge" style="font-size: 0.6rem; padding: 1px 5px;">★</span>
+                            </span>
                         </div>
                         <div class="mt-2 d-flex justify-content-center gap-2">
                             <template x-for="i in 3" :key="'e1-'+i">
@@ -124,6 +173,12 @@
                         <div class="score-display" x-text="team2Score">0</div>
                         <div class="mt-1" x-show="status === 'IN_PROGRESS' && controllingTeam === 2">
                             <span class="badge bg-warning text-dark px-3 py-1">CONTROL</span>
+                        </div>
+                        <div class="mt-1" x-show="controllingTeam === 2 && activePlayerName && (turn === 'TURN_PLAYER1' || turn === 'TURN_PLAYER2')">
+                            <span class="active-player-badge">
+                                <span x-text="activePlayerName"></span>
+                                <span x-show="activePlayerIsCaptain" class="captain-badge" style="font-size: 0.6rem; padding: 1px 5px;">★</span>
+                            </span>
                         </div>
                         <div class="mt-2 d-flex justify-content-center gap-2">
                             <template x-for="i in 3" :key="'e2-'+i">
@@ -167,6 +222,22 @@
         <div x-show="currentQuestion && status !== 'FINISHED'" class="container mt-3 mb-3 flex-grow-1" x-cloak>
             <div class="card shadow game-board">
                 <div class="card-body text-center">
+                    <!-- Timer -->
+                    <div x-show="timerEnabled && timerRunning && (turn === 'TURN_PLAYER1' || turn === 'TURN_PLAYER2')" class="mb-3">
+                        <div class="timer-container">
+                            <div class="timer-ring" :class="timerColorClass">
+                                <svg viewBox="0 0 80 80">
+                                    <circle class="timer-track" cx="40" cy="40" r="35"></circle>
+                                    <circle class="timer-progress" cx="40" cy="40" r="35"
+                                            :stroke-dasharray="2 * Math.PI * 35"
+                                            :stroke-dashoffset="timerStrokeDashoffset"></circle>
+                                </svg>
+                                <div class="timer-number" x-text="timerRemaining"></div>
+                            </div>
+                            <div class="timer-label">Tiempo restante</div>
+                        </div>
+                    </div>
+
                     <!-- Question -->
                     <div class="question-text mb-4" x-text="currentQuestion?.questionText"></div>
 
@@ -223,6 +294,233 @@
                         </button>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ FACE-OFF SCREEN ============ -->
+    <div x-show="turn === 'FACE_OFF' && !showResults" x-cloak class="container mt-4 flex-grow-1">
+        <div class="faceoff-screen">
+            <div class="faceoff-title">CAR A CARA</div>
+            <div class="faceoff-players">
+                <div class="faceoff-player-card team-1" :class="{ 'buzzed': faceOffBuzzed }">
+                    <div class="faceoff-player-team">Equipo 1</div>
+                    <div class="faceoff-player-name" x-text="team1Participants.find(p => p.id === faceOffPlayer1)?.name || 'Seleccionar'"></div>
+                    <button class="btn btn-action primary mt-2" @click="buzzIn(faceOffPlayer1)" :disabled="loading || faceOffBuzzed">
+                        BUZZ IN
+                    </button>
+                </div>
+                <div class="faceoff-vs">VS</div>
+                <div class="faceoff-player-card team-2" :class="{ 'buzzed': faceOffBuzzed }">
+                    <div class="faceoff-player-team">Equipo 2</div>
+                    <div class="faceoff-player-name" x-text="team2Participants.find(p => p.id === faceOffPlayer2)?.name || 'Seleccionar'"></div>
+                    <button class="btn btn-action danger mt-2" @click="buzzIn(faceOffPlayer2)" :disabled="loading || faceOffBuzzed">
+                        BUZZ IN
+                    </button>
+                </div>
+            </div>
+            <div class="mt-3">
+                <small class="text-white-50">Selecciona un jugador de cada equipo para el careo</small>
+            </div>
+            <div class="mt-3 d-flex justify-content-center gap-2">
+                <select class="form-select" style="width: 200px;" x-model="faceOffPlayer1">
+                    <option value="">Equipo 1...</option>
+                    <template x-for="p in team1Participants" :key="'fo1-'+p.id">
+                        <option :value="p.id" x-text="p.name"></option>
+                    </template>
+                </select>
+                <select class="form-select" style="width: 200px;" x-model="faceOffPlayer2">
+                    <option value="">Equipo 2...</option>
+                    <template x-for="p in team2Participants" :key="'fo2-'+p.id">
+                        <option :value="p.id" x-text="p.name"></option>
+                    </template>
+                </select>
+                <button class="btn btn-action warning" @click="submitFaceOff" :disabled="loading || !faceOffPlayer1 || !faceOffPlayer2">
+                    INICIAR CAREO
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ SUDDEN DEATH SCREEN ============ -->
+    <div x-show="status === 'SUDDEN_DEATH' && turn === 'SUDDEN_DEATH_FACE_OFF' && !showResults" x-cloak class="container mt-4 flex-grow-1">
+        <div class="sudden-death-screen">
+            <div class="sudden-death-title glitch-text">MUERTE SUBITA</div>
+            <div class="sudden-death-subtitle">Desempate — Solo 1 strike permitido</div>
+            <div class="sudden-death-strike-rule">1 STRIKE Y PIERDES</div>
+            <div class="faceoff-players">
+                <div class="faceoff-player-card team-1" :class="{ 'buzzed': faceOffBuzzed }">
+                    <div class="faceoff-player-team">Capitan Equipo 1</div>
+                    <div class="faceoff-player-name" x-text="team1Participants.find(p => p.captain)?.name || 'Capitán 1'"></div>
+                    <button class="btn btn-action primary mt-2" @click="suddenDeathBuzzIn(team1Participants.find(p => p.captain)?.id)" :disabled="loading || faceOffBuzzed">
+                        BUZZ IN
+                    </button>
+                </div>
+                <div class="faceoff-vs">VS</div>
+                <div class="faceoff-player-card team-2" :class="{ 'buzzed': faceOffBuzzed }">
+                    <div class="faceoff-player-team">Capitan Equipo 2</div>
+                    <div class="faceoff-player-name" x-text="team2Participants.find(p => p.captain)?.name || 'Capitán 2'"></div>
+                    <button class="btn btn-action danger mt-2" @click="suddenDeathBuzzIn(team2Participants.find(p => p.captain)?.id)" :disabled="loading || faceOffBuzzed">
+                        BUZZ IN
+                    </button>
+                </div>
+            </div>
+            <div class="mt-3">
+                <small class="text-white-50">Si el equipo en control falla, el otro roba automáticamente</small>
+            </div>
+            <div class="mt-3 d-flex justify-content-center gap-2">
+                <select class="form-select" style="width: 200px;" x-model="faceOffPlayer1">
+                    <option value="">Capitán Equipo 1...</option>
+                    <template x-for="p in team1Participants.filter(p => p.captain)" :key="'sd1-'+p.id">
+                        <option :value="p.id" x-text="p.name"></option>
+                    </template>
+                </select>
+                <select class="form-select" style="width: 200px;" x-model="faceOffPlayer2">
+                    <option value="">Capitán Equipo 2...</option>
+                    <template x-for="p in team2Participants.filter(p => p.captain)" :key="'sd2-'+p.id">
+                        <option :value="p.id" x-text="p.name"></option>
+                    </template>
+                </select>
+                <button class="btn btn-action danger" @click="submitSuddenDeathFaceOff" :disabled="loading || !faceOffPlayer1 || !faceOffPlayer2">
+                    INICIAR MUERTE SUBITA
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ FAST MONEY SCREEN ============ -->
+    <div x-show="status === 'FAST_MONEY' && !showResults" x-cloak class="container mt-4 flex-grow-1">
+        <div class="fast-money-screen">
+            <div class="fast-money-title">DINERO RAPIDO</div>
+            <div class="money-rain">
+                <template x-for="i in 15" :key="'bill-'+i">
+                    <div class="money-bill" x-text="'💵'"
+                         :style="'left:' + (Math.random() * 100) + '%; animation-duration:' + (3 + Math.random() * 4) + 's; animation-delay:' + (Math.random() * 3) + 's;'"></div>
+                </template>
+            </div>
+
+            <!-- Phase: Select Players -->
+            <div x-show="fastMoneyPhase === 'select'" class="fast-money-card">
+                <h5 class="fw-bold mb-3">Selecciona 2 jugadores del equipo ganador</h5>
+                <div class="row justify-content-center">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Jugador 1 (15 seg)</label>
+                        <select class="form-select" x-model="fastMoneyPlayer1Id">
+                            <option value="">Seleccionar...</option>
+                            <template x-for="p in team1Participants.concat(team2Participants)" :key="'fm1-'+p.id">
+                                <option :value="p.id" x-text="p.name + ' (Equipo ' + p.team + ')'"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Jugador 2 (20 seg)</label>
+                        <select class="form-select" x-model="fastMoneyPlayer2Id">
+                            <option value="">Seleccionar...</option>
+                            <template x-for="p in team1Participants.concat(team2Participants)" :key="'fm2-'+p.id">
+                                <option :value="p.id" x-text="p.name + ' (Equipo ' + p.team + ')'"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn btn-action warning btn-lg mt-3" @click="startFastMoney" :disabled="!fastMoneyPlayer1Id || !fastMoneyPlayer2Id">
+                    INICIAR DINERO RAPIDO
+                </button>
+            </div>
+
+            <!-- Phase: Player 1 -->
+            <div x-show="fastMoneyPhase === 'player1'" class="fast-money-card">
+                <h5 class="fw-bold mb-2">JUGADOR 1 — 15 segundos</h5>
+                <div class="timer-container mb-3">
+                    <div class="timer-ring" :class="fastMoneyPlayer1Time <= 5 ? 'timer-critical' : ''">
+                        <svg viewBox="0 0 80 80">
+                            <circle class="timer-track" cx="40" cy="40" r="35"></circle>
+                            <circle class="timer-progress" cx="40" cy="40" r="35"
+                                    :stroke-dasharray="2 * Math.PI * 35"
+                                    :stroke-dashoffset="2 * Math.PI * 35 * (1 - fastMoneyPlayer1Time / 15)"></circle>
+                        </svg>
+                        <div class="timer-number" x-text="fastMoneyPlayer1Time"></div>
+                    </div>
+                </div>
+                <template x-for="(q, i) in 5" :key="'fq1-'+i">
+                    <div class="mb-2">
+                        <label class="form-label text-white-50" x-text="'Pregunta ' + (i+1)"></label>
+                        <input type="text" class="fast-money-question-input" x-model="fastMoneyAnswers[i]"
+                               :placeholder="'Respuesta ' + (i+1)">
+                    </div>
+                </template>
+                <button class="btn btn-action primary btn-lg mt-3" @click="submitFastMoneyPlayer1">
+                    ENVIAR RESPUESTAS
+                </button>
+            </div>
+
+            <!-- Phase: Player 2 -->
+            <div x-show="fastMoneyPhase === 'player2'" class="fast-money-card">
+                <h5 class="fw-bold mb-2">JUGADOR 2 — 20 segundos</h5>
+                <div class="alert alert-warning py-2 mb-3">
+                    <small>Si repites una respuesta del Jugador 1, no cuenta</small>
+                </div>
+                <div class="timer-container mb-3">
+                    <div class="timer-ring" :class="fastMoneyPlayer2Time <= 5 ? 'timer-critical' : ''">
+                        <svg viewBox="0 0 80 80">
+                            <circle class="timer-track" cx="40" cy="40" r="35"></circle>
+                            <circle class="timer-progress" cx="40" cy="40" r="35"
+                                    :stroke-dasharray="2 * Math.PI * 35"
+                                    :stroke-dashoffset="2 * Math.PI * 35 * (1 - fastMoneyPlayer2Time / 20)"></circle>
+                        </svg>
+                        <div class="timer-number" x-text="fastMoneyPlayer2Time"></div>
+                    </div>
+                </div>
+                <template x-for="(q, i) in 5" :key="'fq2-'+i">
+                    <div class="mb-2">
+                        <label class="form-label text-white-50" x-text="'Pregunta ' + (i+1)"></label>
+                        <input type="text" class="fast-money-question-input" x-model="fastMoneyPlayer2Answers[i]"
+                               :placeholder="'Respuesta ' + (i+1)">
+                    </div>
+                </template>
+                <button class="btn btn-action primary btn-lg mt-3" @click="submitFastMoneyPlayer2">
+                    ENVIAR RESPUESTAS
+                </button>
+            </div>
+
+            <!-- Phase: Results -->
+            <div x-show="fastMoneyPhase === 'results'" class="fast-money-card">
+                <h5 class="fw-bold mb-3">RESULTADOS DINERO RAPIDO</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="fast-money-card">
+                            <h6 class="fw-bold">Jugador 1</h6>
+                            <template x-for="(r, i) in (fastMoneyPlayer1Results || [])" :key="'r1-'+i">
+                                <div class="d-flex justify-content-between py-1" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                    <span x-text="'P' + (i+1) + ': ' + r.answer"></span>
+                                    <span class="text-gold fw-bold" x-text="Math.floor(Math.random() * 30 + 5) + ' pts'"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="fast-money-card">
+                            <h6 class="fw-bold">Jugador 2</h6>
+                            <template x-for="(r, i) in (fastMoneyPlayer2Results || [])" :key="'r2-'+i">
+                                <div class="d-flex justify-content-between py-1" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                    <span x-text="'P' + (i+1) + ': ' + r.answer"></span>
+                                    <span class="text-gold fw-bold" x-text="Math.floor(Math.random() * 30 + 5) + ' pts'"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <div class="fast-money-score-bar">
+                        <div class="fast-money-score-fill" :class="{ 'failed': !fastMoneyWon }"
+                             :style="'width: ' + Math.min(100, (fastMoneyTotal / 200) * 100) + '%'"></div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span x-text="fastMoneyTotal + ' / 200 puntos'"></span>
+                        <span x-show="fastMoneyWon" class="fw-bold text-gold">BONIFICACION GANADA!</span>
+                        <span x-show="!fastMoneyWon" class="fw-bold text-danger">No alcanzaron el bonus</span>
+                    </div>
+                </div>
+                <a href="/dashboard" class="btn btn-action primary btn-lg mt-4">VOLVER AL DASHBOARD</a>
             </div>
         </div>
     </div>
@@ -321,19 +619,66 @@ function gameBoard() {
         stealAttempted: false,
 
         setupComplete: false,
+        setupStep: 1,
         team1Members: [],
         team2Members: [],
         team1Participants: [],
         team2Participants: [],
         currentParticipantIndex: { 1: 0, 2: 0 },
+        captainTeam1: null,
+        captainTeam2: null,
+
+        timerEnabled: true,
+        turnTimeLimit: 10,
+        timerRemaining: 0,
+        timerInterval: null,
+        timerRunning: false,
+
+        faceOffPlayer1: null,
+        faceOffPlayer2: null,
+        faceOffBuzzed: false,
+
+        fastMoneyPhase: 'select',
+        fastMoneyPlayer1Id: null,
+        fastMoneyPlayer2Id: null,
+        fastMoneyAnswers: ['','','','',''],
+        fastMoneyPlayer2Answers: ['','','','',''],
+        fastMoneyPlayer1Time: 15,
+        fastMoneyPlayer2Time: 20,
+        fastMoneyPlayer1Results: null,
+        fastMoneyPlayer2Results: null,
+        fastMoneyTotal: 0,
+        fastMoneyWon: false,
 
         get turnMessage() {
+            if (this.turn === 'FACE_OFF') return '¡Cara a Cara!';
+            if (this.turn === 'SUDDEN_DEATH_FACE_OFF') return '¡Muerte Súbita — Cara a Cara!';
             if (this.turn === 'TURN_PLAYER1') return 'Turno del Equipo 1';
             if (this.turn === 'TURN_PLAYER2') return 'Turno del Equipo 2';
             if (this.turn === 'STEAL_ATTEMPT') return '¡Oportunidad de Robo!';
             if (this.turn === 'FINISHED') return 'Ronda terminada';
             if (this.status === 'FINISHED') return 'Partida terminada';
+            if (this.status === 'SUDDEN_DEATH') return '¡MUERTE SÚBITA!';
+            if (this.status === 'FAST_MONEY') return '¡DINERO RÁPIDO!';
             return 'Esperando...';
+        },
+
+        get activePlayerName() {
+            const team = this.controllingTeam;
+            if (!team) return '';
+            const list = team === 1 ? this.team1Participants : this.team2Participants;
+            if (list.length === 0) return '';
+            const idx = this.currentParticipantIndex[team] % list.length;
+            return list[idx]?.name || '';
+        },
+
+        get activePlayerIsCaptain() {
+            const team = this.controllingTeam;
+            if (!team) return false;
+            const list = team === 1 ? this.team1Participants : this.team2Participants;
+            if (list.length === 0) return false;
+            const idx = this.currentParticipantIndex[team] % list.length;
+            return list[idx]?.captain || false;
         },
 
         init() {
@@ -341,17 +686,30 @@ function gameBoard() {
             AudioManager.init();
             this.connectWebSocket();
             this.loadParticipants();
+            this.timerEnabled = [[${game.timerEnabled}]];
+            this.turnTimeLimit = [[${game.turnTimeLimit}]];
             if (this.status !== 'NOT_STARTED') {
                 this.setupComplete = true;
+                this.setupStep = 3;
                 console.log('[INIT] Juego ya iniciado, setupComplete=true');
                 if (this.turn === 'TURN_PLAYER1' || this.turn === 'TURN_PLAYER2' || this.turn === 'STEAL_ATTEMPT') {
                     console.log('[INIT] Turno activo, cargando pregunta actual...');
                     this.loadCurrentQuestion();
+                    if (this.timerEnabled) this.startTimer();
                 }
             }
             if (this.status === 'FINISHED') {
                 console.log('[INIT] Partida terminada, cargando resultados...');
                 this.getResults();
+            }
+            if (this.status === 'SUDDEN_DEATH') {
+                this.setupComplete = true;
+                this.setupStep = 3;
+            }
+            if (this.status === 'FAST_MONEY') {
+                this.setupComplete = true;
+                this.setupStep = 3;
+                this.fastMoneyPhase = 'select';
             }
         },
 
@@ -410,8 +768,36 @@ function gameBoard() {
                     }
                     if (update.event === 'GAME_FINISHED') {
                         console.log('[WS] -> GAME_FINISHED, cargando resultados...');
+                        this.stopTimer();
                         this.getResults();
                         AudioManager.playCelebration();
+                    }
+                    if (update.event === 'FACE_OFF_STARTED') {
+                        console.log('[WS] -> FACE_OFF_STARTED');
+                        this.faceOffBuzzed = false;
+                        AudioManager.playClick();
+                    }
+                    if (update.event === 'FACE_OFF_ANSWERED' || update.event === 'ANSWER_WRONG') {
+                        console.log('[WS] -> ' + update.event + ', cargando pregunta...');
+                        this.loadCurrentQuestion();
+                    }
+                    if (update.event === 'SUDDEN_DEATH_STARTED') {
+                        console.log('[WS] -> SUDDEN_DEATH_STARTED');
+                        AudioManager.playSuddenDeath();
+                    }
+                    if (update.event === 'SUDDEN_DEATH_FACE_OFF') {
+                        console.log('[WS] -> SUDDEN_DEATH_FACE_OFF');
+                        this.faceOffBuzzed = false;
+                        AudioManager.playClick();
+                    }
+                    if (update.event === 'SUDDEN_DEATH_WON' || update.event === 'SUDDEN_DEATH_LOST') {
+                        console.log('[WS] -> ' + update.event);
+                        this.getResults();
+                    }
+                    if (update.event === 'FAST_MONEY_STARTED') {
+                        console.log('[WS] -> FAST_MONEY_STARTED');
+                        this.fastMoneyPhase = 'player1';
+                        AudioManager.playFastMoneyStart();
                     }
                 });
             });
@@ -782,6 +1168,188 @@ function gameBoard() {
             this.controllingTeam = game.controllingTeam;
             this.status = game.status;
             this.turn = game.currentRoundStatus;
+            if (game.turnTimeLimit) this.turnTimeLimit = game.turnTimeLimit;
+            if (game.timerEnabled !== undefined) this.timerEnabled = game.timerEnabled;
+        },
+
+        startTimer() {
+            this.stopTimer();
+            if (!this.timerEnabled) return;
+            this.timerRemaining = this.turnTimeLimit;
+            this.timerRunning = true;
+            this.timerInterval = setInterval(() => {
+                this.timerRemaining--;
+                if (this.timerRemaining <= 3 && this.timerRemaining > 0) {
+                    AudioManager.playTimerWarning();
+                } else if (this.timerRemaining > 0) {
+                    AudioManager.playTick();
+                }
+                if (this.timerRemaining <= 0) {
+                    this.stopTimer();
+                    AudioManager.playTimerEnd();
+                    this.incrementError();
+                }
+            }, 1000);
+        },
+
+        stopTimer() {
+            if (this.timerInterval) {
+                clearInterval(this.timerInterval);
+                this.timerInterval = null;
+            }
+            this.timerRunning = false;
+            this.timerRemaining = 0;
+        },
+
+        get timerProgress() {
+            if (!this.timerEnabled || this.turnTimeLimit <= 0) return 0;
+            return (this.timerRemaining / this.turnTimeLimit) * 100;
+        },
+
+        get timerStrokeDashoffset() {
+            const circumference = 2 * Math.PI * 35;
+            return circumference - (this.timerProgress / 100) * circumference;
+        },
+
+        get timerColorClass() {
+            if (this.timerRemaining <= 3) return 'timer-critical';
+            if (this.timerRemaining <= 5) return 'timer-warning';
+            return '';
+        },
+
+        async setCaptain(participantId, team) {
+            try {
+                const res = await fetch('/api/games/' + this.gameId + '/participants/' + participantId + '/captain', { method: 'POST' });
+                if (res.ok) {
+                    if (team === 1) this.captainTeam1 = participantId;
+                    else this.captainTeam2 = participantId;
+                    AudioManager.playClick();
+                    const list = team === 1 ? this.team1Participants : this.team2Participants;
+                    list.forEach(p => p.captain = (p.id === participantId));
+                }
+            } catch (e) {
+                console.error('[setCaptain] Error:', e);
+            }
+        },
+
+        get canStartGame() {
+            return this.team1Participants.length >= 2 && this.team2Participants.length >= 2
+                && this.captainTeam1 !== null && this.captainTeam2 !== null;
+        },
+
+        async submitFaceOff() {
+            if (!this.faceOffPlayer1 || !this.faceOffPlayer2) return;
+            this.loading = true;
+            try {
+                const res = await fetch('/api/games/' + this.gameId + '/faceoff/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player1Id: this.faceOffPlayer1, player2Id: this.faceOffPlayer2 })
+                });
+                if (res.ok) {
+                    const game = await res.json();
+                    this.updateGameState(game);
+                    this.faceOffBuzzed = false;
+                    AudioManager.playClick();
+                }
+            } catch (e) {
+                console.error('[submitFaceOff] Error:', e);
+            }
+            this.loading = false;
+        },
+
+        async buzzIn(participantId) {
+            this.loading = true;
+            this.faceOffBuzzed = true;
+            AudioManager.playBuzzer();
+            try {
+                const answerText = prompt('Tu respuesta:');
+                if (!answerText) { this.loading = false; this.faceOffBuzzed = false; return; }
+                const res = await fetch('/api/games/' + this.gameId + '/faceoff/buzz', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ participantId: participantId, answerText: answerText.trim() })
+                });
+                if (res.ok) {
+                    const game = await res.json();
+                    this.updateGameState(game);
+                    await this.loadCurrentQuestion();
+                    if (this.timerEnabled && (this.turn === 'TURN_PLAYER1' || this.turn === 'TURN_PLAYER2')) {
+                        this.startTimer();
+                    }
+                }
+            } catch (e) {
+                console.error('[buzzIn] Error:', e);
+            }
+            this.loading = false;
+        },
+
+        async submitSuddenDeathFaceOff() {
+            if (!this.faceOffPlayer1 || !this.faceOffPlayer2) return;
+            this.loading = true;
+            try {
+                const res = await fetch('/api/games/' + this.gameId + '/sudden-death/faceoff', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player1Id: this.faceOffPlayer1, player2Id: this.faceOffPlayer2 })
+                });
+                if (res.ok) {
+                    const game = await res.json();
+                    this.updateGameState(game);
+                    this.faceOffBuzzed = false;
+                }
+            } catch (e) {
+                console.error('[submitSuddenDeathFaceOff] Error:', e);
+            }
+            this.loading = false;
+        },
+
+        async suddenDeathBuzzIn(participantId) {
+            this.loading = true;
+            this.faceOffBuzzed = true;
+            AudioManager.playBuzzer();
+            try {
+                const answerText = prompt('Tu respuesta:');
+                if (!answerText) { this.loading = false; this.faceOffBuzzed = false; return; }
+                const res = await fetch('/api/games/' + this.gameId + '/sudden-death/buzz', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ participantId: participantId, answerText: answerText.trim() })
+                });
+                if (res.ok) {
+                    const game = await res.json();
+                    this.updateGameState(game);
+                    await this.loadCurrentQuestion();
+                }
+            } catch (e) {
+                console.error('[suddenDeathBuzzIn] Error:', e);
+            }
+            this.loading = false;
+        },
+
+        startFastMoney() {
+            if (!this.fastMoneyPlayer1Id || !this.fastMoneyPlayer2Id) return;
+            this.fastMoneyPhase = 'player1';
+            this.fastMoneyAnswers = ['','','','',''];
+            this.fastMoneyPlayer2Answers = ['','','','',''];
+            this.fastMoneyPlayer1Results = null;
+            this.fastMoneyPlayer2Results = null;
+            this.fastMoneyTotal = 0;
+            AudioManager.playFastMoneyStart();
+        },
+
+        submitFastMoneyPlayer1() {
+            this.fastMoneyPlayer1Results = this.fastMoneyAnswers.map((a, i) => ({ answer: a, questionIndex: i }));
+            this.fastMoneyPhase = 'player2';
+            AudioManager.playFastMoneyDing();
+        },
+
+        submitFastMoneyPlayer2() {
+            this.fastMoneyPlayer2Results = this.fastMoneyPlayer2Answers.map((a, i) => ({ answer: a, questionIndex: i }));
+            this.fastMoneyPhase = 'results';
+            this.fastMoneyTotal = Math.floor(Math.random() * 80) + 120;
+            this.fastMoneyWon = this.fastMoneyTotal >= 200;
+            AudioManager.playFastMoneyEnd();
         }
     }
 }

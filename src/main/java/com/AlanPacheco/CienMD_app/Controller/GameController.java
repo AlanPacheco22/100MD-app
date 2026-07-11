@@ -125,6 +125,14 @@ public class GameController {
         return ResponseEntity.ok(gameService.revealAnswer(gameId, answerId));
     }
 
+    @PostMapping("/{gameId}/participants/{participantId}/captain")
+    public ResponseEntity<Void> setCaptain(
+            @PathVariable Long gameId, @PathVariable Long participantId) {
+        log.info("[API POST /api/games/{}/participants/{}/captain] Designando capitán", gameId, participantId);
+        gameService.setCaptain(gameId, participantId);
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/{gameId}/faceoff/start")
     public ResponseEntity<GameDTO> startFaceOff(
             @PathVariable Long gameId,

@@ -775,6 +775,32 @@ public class GameService {
     }
 
     @Transactional
+    public void setCaptain(Long gameId, Long participantId) {
+        log.info("[setCaptain] gameId={}, participantId={}", gameId, participantId);
+        Game game = gameRepository.findById(gameId)
+                .orElseThrow(() -> new GameNotFoundException("Partida no encontrada: " + gameId));
+
+        if (game.getStatus() != GameStatus.NOT_STARTED) {
+            throw new IllegalStateException("Solo se puede asignar capitán antes de iniciar la partida");
+        }
+
+        Participant participant = participantRepository.findById(participantId)
+                .orElseThrow(() -> new ParticipantNotFoundException("Participante no encontrado: " + participantId));
+
+        if (participant.getGame().getId() != gameId) {
+            throw new IllegalStateException("El participante no pertenece a esta partida");
+        }
+
+        participantRepository.findByGameId(gameId).stream()
+                .filter(p -> p.getTeam() == participant.getTeam())
+                .forEach(p -> p.setCaptain(false));
+
+        participant.setCaptain(true);
+        participantRepository.save(participant);
+        log.info("[setCaptain] {} designado como capitán del Equipo {}", participant.getName(), participant.getTeam());
+    }
+
+    @Transactional
     public GameDTO startFaceOff(Long gameId, Long player1Id, Long player2Id) {
         log.info("[startFaceOff] gameId={}, player1Id={}, player2Id={}", gameId, player1Id, player2Id);
         Game game = gameRepository.findById(gameId)
