@@ -659,3 +659,44 @@
 - Jugador 2: mismas 5 preguntas, 20 segundos
 - Si repite respuesta → invalida
 - Si total ≥ 200 puntos → gana bonificación
+
+---
+
+## FASE 7b: Corrección de bugs — Auditoría post-implementación
+
+**Fecha:** Julio 2026
+**Commits:** 20 fixes aplicados
+
+### Bugs corregidos
+
+| # | Severidad | Descripción | Archivos |
+|---|---|---|---|
+| 1 | Critical | `saveParticipants()` llamado 2 veces (step 1 + step 2) | play.html |
+| 2 | Critical | `startRound()` se ejecuta antes de captain selection | play.html |
+| 3 | Critical | `suddenDeathAnswer()` siempre incrementa `team1Errors` | GameService.java |
+| 4 | Critical | `buzzIn()` usa `indexOf()` con referencia en vez de ID | GameService.java |
+| 5 | High | `Long` comparado con `!=` en vez de `.equals()` (3 lugares) | GameService.java |
+| 6 | High | `ANSWER_WRONG` handler ejecuta `loadCurrentQuestion()` 2 veces | play.html |
+| 7 | High | Timer nunca inicia en flujo normal (solo en refresh) | play.html |
+| 8 | High | Timer no se detiene durante STEAL_ATTEMPT / ROUND_ENDED | play.html |
+| 9 | High | `ParticipantDTO` sin campo `captain` (se pierde en refresh) | ParticipantDTO.java, GameService.java |
+| 10 | High | Fast Money timers nunca decrementan | play.html |
+| 11 | High | Fast Money 100% mock — nunca llama al backend | play.html |
+| 12 | Medium | Multiplicadores custom siempre hardcodeados | Game.java, GameService.java, V12 migration |
+| 13 | Medium | BUZZ IN activo cuando no hay jugador seleccionado | play.html |
+| 14 | Medium | Fast Money permite mismo jugador 2 veces | play.html |
+| 15 | Medium | Fast Money muestra resultados random | play.html |
+| 16 | Medium | `x-cloak` falta en sección de setup | play.html |
+| 17 | Medium | `handleCorrectAnswer()` steal solo funciona para team 2 | GameService.java |
+| 18 | Medium | `mapToGameDTO()` omite `faceOffPlayer1/2` | GameDTO.java, GameService.java |
+| 19 | Medium | `.fast-money-screen` sin `position: relative` | style.css |
+| 20 | Medium | 5 eventos WebSocket sin handler | play.html |
+
+### Archivos modificados
+- `src/main/java/.../Service/GameService.java` — Fixes 3,4,5,12,17,18
+- `src/main/java/.../DTO/ParticipantDTO.java` — Fix 9 (campo `captain`)
+- `src/main/java/.../DTO/GameDTO.java` — Fix 18 (campos `faceOffPlayer1/2`)
+- `src/main/java/.../Entity/Game.java` — Fix 12 (`roundMultipliers`, `getMultipliersArray()`)
+- `src/main/resources/templates/play.html` — Fixes 1,2,6,7,8,10,11,13,14,15,16,20
+- `src/main/resources/static/css/style.css` — Fix 19
+- `src/main/resources/db/migration/V12__round_multipliers.sql` — Fix 12

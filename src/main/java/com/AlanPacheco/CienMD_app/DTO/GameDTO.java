@@ -32,4 +32,6 @@ public class GameDTO {
     private String winner;
     private String gameQuestionText;
     private List<AnswerDTO> currentAnswers;
+    private Long faceOffPlayer1;
+    private Long faceOffPlayer2;
 }

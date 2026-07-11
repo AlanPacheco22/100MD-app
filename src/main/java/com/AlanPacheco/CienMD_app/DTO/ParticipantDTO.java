@@ -10,4 +10,5 @@ public class ParticipantDTO {
     private String name;
     private int team;
     private int score;
+    private boolean captain;
 }

@@ -100,6 +100,7 @@ public class GameService {
         game.setTimerEnabled(config.isTimerEnabled());
         game.setTurnTimeLimit(config.getTurnTimeLimit());
         game.setCurrentMultiplier(multipliers[0]);
+        game.setMultipliersArray(multipliers);
         game.setControllingTeam(null);
         game = gameRepository.save(game);
         log.info("[createNewGame] Partida guardada con ID={}, status={}, targetScore={}", game.getId(), game.getStatus(), game.getTargetScore());
@@ -309,14 +310,19 @@ public class GameService {
     private void handleCorrectAnswer(Game game, int points, int team) {
         log.info("[handleCorrectAnswer] team={}, points={}, roundStatus={}, roundPoints={}", team, points, game.getCurrentRoundStatus(), game.getCurrentRoundPoints());
         if (game.getCurrentRoundStatus() == GameRoundStatus.STEAL_ATTEMPT) {
-            if (team == 2) {
-                game.setTeam2Score(game.getTeam2Score() + game.getCurrentRoundPoints() + points);
+            int stealingTeam = (game.getControllingTeam() == 1) ? 2 : 1;
+            if (team == stealingTeam) {
+                int totalStolen = game.getCurrentRoundPoints() + points;
+                if (stealingTeam == 1) {
+                    game.setTeam1Score(game.getTeam1Score() + totalStolen);
+                } else {
+                    game.setTeam2Score(game.getTeam2Score() + totalStolen);
+                }
                 game.setCurrentRoundPoints(0);
                 game.setCurrentRoundStatus(GameRoundStatus.FINISHED);
-                log.info("[handleCorrectAnswer] Robo exitoso! Equipo {} roba {} puntos. Nuevo score={}", team, game.getCurrentRoundPoints() + points, game.getTeam2Score());
+                log.info("[handleCorrectAnswer] Robo exitoso! Equipo {} roba {} puntos.", stealingTeam, totalStolen);
             } else {
-                game.setCurrentRoundPoints(game.getCurrentRoundPoints() + points);
-                log.info("[handleCorrectAnswer] Equipo {} suma {} puntos en ronda. roundPoints={}", team, points, game.getCurrentRoundPoints());
+                log.info("[handleCorrectAnswer] Equipo {} no es el equipo que roba (esperado {}). Ignorando.", team, stealingTeam);
             }
         } else {
             game.setCurrentRoundPoints(game.getCurrentRoundPoints() + points);
@@ -624,6 +630,7 @@ public class GameService {
         result.setId(participant.getId());
         result.setName(participant.getName());
         result.setTeam(participant.getTeam());
+        result.setCaptain(participant.isCaptain());
         result.setScore(0);
         return result;
     }
@@ -635,6 +642,7 @@ public class GameService {
                     dto.setId(p.getId());
                     dto.setName(p.getName());
                     dto.setTeam(p.getTeam());
+                    dto.setCaptain(p.isCaptain());
                     dto.setScore(gameRoundRepository.sumScoreByParticipantId(p.getId()));
                     return dto;
                 })
@@ -667,6 +675,8 @@ public class GameService {
         dto.setCurrentTurnIndex(game.getCurrentTurnIndex());
         dto.setTimerEnabled(game.isTimerEnabled());
         dto.setTurnTimeLimit(game.getTurnTimeLimit());
+        dto.setFaceOffPlayer1(game.getFaceOffPlayer1());
+        dto.setFaceOffPlayer2(game.getFaceOffPlayer2());
         if (game.getCurrentGameQuestion() != null) {
             dto.setCurrentQuestionId(game.getCurrentGameQuestion().getId());
             dto.setGameQuestionText(game.getCurrentGameQuestion().getQuestion().getText());
@@ -728,18 +738,7 @@ public class GameService {
     }
 
     private int[] getMultipliersForGame(Game game) {
-        int totalRounds = game.getTotalRounds();
-        int[] multipliers = new int[totalRounds];
-        for (int i = 0; i < totalRounds; i++) {
-            if (i < totalRounds - 2) {
-                multipliers[i] = 1;
-            } else if (i == totalRounds - 2) {
-                multipliers[i] = 2;
-            } else {
-                multipliers[i] = 3;
-            }
-        }
-        return multipliers;
+        return game.getMultipliersArray();
     }
 
     private boolean checkForEarlyWin(Game game) {
@@ -787,7 +786,7 @@ public class GameService {
         Participant participant = participantRepository.findById(participantId)
                 .orElseThrow(() -> new ParticipantNotFoundException("Participante no encontrado: " + participantId));
 
-        if (participant.getGame().getId() != gameId) {
+        if (!participant.getGame().getId().equals(gameId)) {
             throw new IllegalStateException("El participante no pertenece a esta partida");
         }
 
@@ -849,7 +848,7 @@ public class GameService {
         Participant participant = participantRepository.findById(participantId)
                 .orElseThrow(() -> new ParticipantNotFoundException("Participante no encontrado: " + participantId));
 
-        if (participant.getId() != game.getFaceOffPlayer1() && participant.getId() != game.getFaceOffPlayer2()) {
+        if (!participant.getId().equals(game.getFaceOffPlayer1()) && !participant.getId().equals(game.getFaceOffPlayer2())) {
             throw new IllegalStateException("Solo los jugadores del face-off pueden responder");
         }
 
@@ -863,7 +862,13 @@ public class GameService {
 
         if (answer != null) {
             List<Answer> allAnswers = gameQuestion.getQuestion().getAnswers();
-            int answerRank = allAnswers.indexOf(answer);
+            int answerRank = -1;
+            for (int i = 0; i < allAnswers.size(); i++) {
+                if (allAnswers.get(i).getId().equals(answer.getId())) {
+                    answerRank = i;
+                    break;
+                }
+            }
 
             if (answerRank == 0) {
                 int controllingTeam = participant.getTeam();
@@ -1102,11 +1107,16 @@ public class GameService {
                 eventPublisher.publishEvent(new GameEvent("SUDDEN_DEATH_LOST", gameId));
                 eventPublisher.publishEvent(new GameEvent("GAME_FINISHED", gameId));
             } else {
-                game.setTeam1Errors(game.getTeam1Errors() + 1);
+                if (participant.getTeam() == 1) {
+                    game.setTeam1Errors(game.getTeam1Errors() + 1);
+                } else {
+                    game.setTeam2Errors(game.getTeam2Errors() + 1);
+                }
 
                 gameRoundRepository.save(round);
 
-                if (game.getTeam1Errors() >= 1) {
+                int teamErrors = (participant.getTeam() == 1) ? game.getTeam1Errors() : game.getTeam2Errors();
+                if (teamErrors >= 1) {
                     int stealingTeam = (game.getControllingTeam() == 1) ? 2 : 1;
                     game.setCurrentRoundStatus(GameRoundStatus.STEAL_ATTEMPT);
                     gameRepository.save(game);

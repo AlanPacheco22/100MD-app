@@ -1,0 +1,1 @@
+ALTER TABLE games ADD COLUMN round_multipliers VARCHAR(255) DEFAULT NULL;

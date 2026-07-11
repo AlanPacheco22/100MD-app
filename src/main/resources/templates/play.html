@@ -28,7 +28,7 @@
     </nav>
 
     <!-- ============ SECTION 1: SETUP DE EQUIPOS ============ -->
-    <div x-show="status === 'NOT_STARTED' && !setupComplete" class="container mt-4 flex-grow-1 fade-in">
+    <div x-show="status === 'NOT_STARTED' && !setupComplete" x-cloak class="container mt-4 flex-grow-1 fade-in">
         <div class="row justify-content-center">
             <div class="col-lg-10">
                 <div class="card" style="border-radius: 20px; overflow: hidden;">
@@ -111,7 +111,7 @@
                             </div>
                             <div class="text-center mt-4">
                                 <button class="btn btn-secondary me-2" @click="setupStep = 1">← Volver</button>
-                                <button class="btn btn-action primary btn-lg px-5" @click="saveParticipants"
+                                <button class="btn btn-action primary btn-lg px-5" @click="startGame"
                                         :disabled="loading || !canStartGame">
                                     <span x-show="!loading">INICIAR JUEGO</span>
                                     <span x-show="loading">Guardando...</span>
@@ -306,7 +306,7 @@
                 <div class="faceoff-player-card team-1" :class="{ 'buzzed': faceOffBuzzed }">
                     <div class="faceoff-player-team">Equipo 1</div>
                     <div class="faceoff-player-name" x-text="team1Participants.find(p => p.id === faceOffPlayer1)?.name || 'Seleccionar'"></div>
-                    <button class="btn btn-action primary mt-2" @click="buzzIn(faceOffPlayer1)" :disabled="loading || faceOffBuzzed">
+                    <button class="btn btn-action primary mt-2" @click="buzzIn(faceOffPlayer1)" :disabled="loading || faceOffBuzzed || !faceOffPlayer1">
                         BUZZ IN
                     </button>
                 </div>
@@ -314,7 +314,7 @@
                 <div class="faceoff-player-card team-2" :class="{ 'buzzed': faceOffBuzzed }">
                     <div class="faceoff-player-team">Equipo 2</div>
                     <div class="faceoff-player-name" x-text="team2Participants.find(p => p.id === faceOffPlayer2)?.name || 'Seleccionar'"></div>
-                    <button class="btn btn-action danger mt-2" @click="buzzIn(faceOffPlayer2)" :disabled="loading || faceOffBuzzed">
+                    <button class="btn btn-action danger mt-2" @click="buzzIn(faceOffPlayer2)" :disabled="loading || faceOffBuzzed || !faceOffPlayer2">
                         BUZZ IN
                     </button>
                 </div>
@@ -408,7 +408,7 @@
                         <select class="form-select" x-model="fastMoneyPlayer1Id">
                             <option value="">Seleccionar...</option>
                             <template x-for="p in team1Participants.concat(team2Participants)" :key="'fm1-'+p.id">
-                                <option :value="p.id" x-text="p.name + ' (Equipo ' + p.team + ')'"></option>
+                                <option :value="p.id" x-text="p.name + ' (Equipo ' + p.team + ')'" :disabled="fastMoneyPlayer2Id && fastMoneyPlayer2Id == p.id"></option>
                             </template>
                         </select>
                     </div>
@@ -417,7 +417,7 @@
                         <select class="form-select" x-model="fastMoneyPlayer2Id">
                             <option value="">Seleccionar...</option>
                             <template x-for="p in team1Participants.concat(team2Participants)" :key="'fm2-'+p.id">
-                                <option :value="p.id" x-text="p.name + ' (Equipo ' + p.team + ')'"></option>
+                                <option :value="p.id" x-text="p.name + ' (Equipo ' + p.team + ')'" :disabled="fastMoneyPlayer1Id && fastMoneyPlayer1Id == p.id"></option>
                             </template>
                         </select>
                     </div>
@@ -488,22 +488,24 @@
                 <div class="row">
                     <div class="col-md-6">
                         <div class="fast-money-card">
-                            <h6 class="fw-bold">Jugador 1</h6>
+                            <h6 class="fw-bold">Jugador 1 — <span class="text-gold" x-text="fastMoneyPlayer1TotalPoints + ' pts'"></span></h6>
                             <template x-for="(r, i) in (fastMoneyPlayer1Results || [])" :key="'r1-'+i">
                                 <div class="d-flex justify-content-between py-1" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                                    <span x-text="'P' + (i+1) + ': ' + r.answer"></span>
-                                    <span class="text-gold fw-bold" x-text="Math.floor(Math.random() * 30 + 5) + ' pts'"></span>
+                                    <span x-text="'P' + (i+1) + ': ' + (r.answer || '—')"></span>
+                                    <span class="text-gold fw-bold" x-text="r.correct ? (r.points + ' pts') : '0 pts'"
+                                          :style="r.correct ? '' : 'color: var(--red) !important;'"></span>
                                 </div>
                             </template>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="fast-money-card">
-                            <h6 class="fw-bold">Jugador 2</h6>
+                            <h6 class="fw-bold">Jugador 2 — <span class="text-gold" x-text="fastMoneyPlayer2TotalPoints + ' pts'"></span></h6>
                             <template x-for="(r, i) in (fastMoneyPlayer2Results || [])" :key="'r2-'+i">
                                 <div class="d-flex justify-content-between py-1" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                                    <span x-text="'P' + (i+1) + ': ' + r.answer"></span>
-                                    <span class="text-gold fw-bold" x-text="Math.floor(Math.random() * 30 + 5) + ' pts'"></span>
+                                    <span x-text="'P' + (i+1) + ': ' + (r.answer || '—')"></span>
+                                    <span class="text-gold fw-bold" x-text="r.correct ? (r.points + ' pts') : '0 pts'"
+                                          :style="r.correct ? '' : 'color: var(--red) !important;'"></span>
                                 </div>
                             </template>
                         </div>
@@ -649,6 +651,10 @@ function gameBoard() {
         fastMoneyPlayer2Results: null,
         fastMoneyTotal: 0,
         fastMoneyWon: false,
+        fastMoneyQuestions: [],
+        fastMoneyTimerInterval: null,
+        fastMoneyPlayer1TotalPoints: 0,
+        fastMoneyPlayer2TotalPoints: 0,
 
         get turnMessage() {
             if (this.turn === 'FACE_OFF') return '¡Cara a Cara!';
@@ -700,6 +706,7 @@ function gameBoard() {
             }
             if (this.status === 'FINISHED') {
                 console.log('[INIT] Partida terminada, cargando resultados...');
+                this.stopFastMoneyTimer();
                 this.getResults();
             }
             if (this.status === 'SUDDEN_DEATH') {
@@ -740,64 +747,72 @@ function gameBoard() {
                         this.loadCurrentQuestion();
                         AudioManager.playCorrect();
                         this.lastResult = { correct: true, message: '¡Correcta! +' + this.currentRoundPoints + ' pts' };
-                    }
-                    if (update.event === 'ANSWER_WRONG') {
+                    } else if (update.event === 'ANSWER_WRONG') {
                         console.log('[WS] -> ANSWER_WRONG, recargando pregunta...');
                         this.loadCurrentQuestion();
                         AudioManager.playWrong();
                         this.lastResult = { correct: false, message: '¡Respuesta incorrecta!' };
-                    }
-                    if (update.event === 'STEAL_ATTEMPT' || update.event === 'TURN_PASSED') {
+                    } else if (update.event === 'STEAL_ATTEMPT' || update.event === 'TURN_PASSED') {
                         console.log('[WS] -> ' + update.event + ', recargando pregunta...');
                         this.loadCurrentQuestion();
                         AudioManager.playStealAlert();
                     }
-                    if (update.event === 'ROUND_STARTED') {
+                    } else if (update.event === 'ROUND_STARTED') {
                         console.log('[WS] -> ROUND_STARTED');
                         this.roundFinished = false;
                         this.stealAttempted = false;
                         this.lastResult = null;
                         AudioManager.playRoundStart();
                         this.loadCurrentQuestion();
-                    }
-                    if (update.event === 'ROUND_ENDED') {
+                    } else if (update.event === 'ROUND_ENDED') {
                         console.log('[WS] -> ROUND_ENDED, limpiando pregunta...');
                         this.roundFinished = true;
                         this.currentQuestion = null;
+                        this.stopTimer();
                         AudioManager.playRoundEnd();
-                    }
-                    if (update.event === 'GAME_FINISHED') {
+                    } else if (update.event === 'GAME_FINISHED') {
                         console.log('[WS] -> GAME_FINISHED, cargando resultados...');
                         this.stopTimer();
+                        this.stopFastMoneyTimer();
                         this.getResults();
                         AudioManager.playCelebration();
-                    }
-                    if (update.event === 'FACE_OFF_STARTED') {
+                    } else if (update.event === 'FACE_OFF_STARTED') {
                         console.log('[WS] -> FACE_OFF_STARTED');
                         this.faceOffBuzzed = false;
+                        this.stopTimer();
                         AudioManager.playClick();
-                    }
-                    if (update.event === 'FACE_OFF_ANSWERED' || update.event === 'ANSWER_WRONG') {
-                        console.log('[WS] -> ' + update.event + ', cargando pregunta...');
+                    } else if (update.event === 'FACE_OFF_ANSWERED') {
+                        console.log('[WS] -> FACE_OFF_ANSWERED, cargando pregunta...');
                         this.loadCurrentQuestion();
-                    }
-                    if (update.event === 'SUDDEN_DEATH_STARTED') {
+                    } else if (update.event === 'SUDDEN_DEATH_STARTED') {
                         console.log('[WS] -> SUDDEN_DEATH_STARTED');
                         AudioManager.playSuddenDeath();
                     }
-                    if (update.event === 'SUDDEN_DEATH_FACE_OFF') {
+                    } else if (update.event === 'SUDDEN_DEATH_FACE_OFF') {
                         console.log('[WS] -> SUDDEN_DEATH_FACE_OFF');
                         this.faceOffBuzzed = false;
+                        this.stopTimer();
                         AudioManager.playClick();
-                    }
-                    if (update.event === 'SUDDEN_DEATH_WON' || update.event === 'SUDDEN_DEATH_LOST') {
+                    } else if (update.event === 'SUDDEN_DEATH_WON' || update.event === 'SUDDEN_DEATH_LOST') {
                         console.log('[WS] -> ' + update.event);
                         this.getResults();
-                    }
-                    if (update.event === 'FAST_MONEY_STARTED') {
+                    } else if (update.event === 'FAST_MONEY_STARTED') {
                         console.log('[WS] -> FAST_MONEY_STARTED');
                         this.fastMoneyPhase = 'player1';
+                        this.stopTimer();
                         AudioManager.playFastMoneyStart();
+                    } else if (update.event === 'FAST_MONEY_PLAYER1_DONE') {
+                        console.log('[WS] -> FAST_MONEY_PLAYER1_DONE');
+                        this.fastMoneyPhase = 'player2';
+                        AudioManager.playFastMoneyDing();
+                    } else if (update.event === 'FAST_MONEY_WON') {
+                        console.log('[WS] -> FAST_MONEY_WON');
+                        this.getResults();
+                    } else if (update.event === 'FAST_MONEY_LOST') {
+                        console.log('[WS] -> FAST_MONEY_LOST');
+                        this.getResults();
+                    } else if (update.event === 'GAME_STARTED') {
+                        console.log('[WS] -> GAME_STARTED');
                     }
                 });
             });
@@ -850,13 +865,7 @@ function gameBoard() {
                 await this.loadParticipants();
                 this.setupComplete = true;
                 AudioManager.playClick();
-                console.log('[saveParticipants] setupComplete=true, status=' + this.status);
-                if (this.status === 'NOT_STARTED') {
-                    console.log('[saveParticipants] Status NOT_STARTED, auto-iniciando ronda...');
-                    await this.startRound();
-                } else {
-                    console.log('[saveParticipants] Status=' + this.status + ', NO se auto-inicia ronda');
-                }
+                console.log('[saveParticipants] setupComplete=true, participants saved');
             } catch (e) {
                 console.error('[saveParticipants] Error:', e);
                 alert('Error guardando participantes: ' + e.message);
@@ -909,6 +918,9 @@ function gameBoard() {
                 AudioManager.playRoundStart();
                 console.log('[startRound] Cargando pregunta actual...');
                 await this.loadCurrentQuestion();
+                if (this.timerEnabled && (this.turn === 'TURN_PLAYER1' || this.turn === 'TURN_PLAYER2')) {
+                    this.startTimer();
+                }
             } catch (e) {
                 console.error('[startRound] Error:', e);
                 alert('Error al iniciar ronda: ' + e.message);
@@ -969,6 +981,7 @@ function gameBoard() {
                     this.answerText = '';
                     if (this.turn === 'STEAL_ATTEMPT') {
                         this.stealAttempted = true;
+                        this.stopTimer();
                         console.log('[submitAnswer] Steal attempt registrado');
                     } else {
                         this.advanceParticipant();
@@ -978,6 +991,9 @@ function gameBoard() {
                     const game = await gameRes.json();
                     this.updateGameState(game);
                     console.log('[submitAnswer] Estado actualizado: turn=' + this.turn + ', t1=' + this.team1Score + ', t2=' + this.team2Score);
+                    if (this.timerEnabled && !this.stealAttempted && (this.turn === 'TURN_PLAYER1' || this.turn === 'TURN_PLAYER2')) {
+                        this.startTimer();
+                    }
                 } else {
                     const err = await res.json();
                     console.error('[submitAnswer] Error del servidor:', err);
@@ -999,6 +1015,7 @@ function gameBoard() {
                 if (res.ok) {
                     const game = await res.json();
                     this.updateGameState(game);
+                    this.stopTimer();
                     console.log('[passTurn] Turno pasado. roundStatus=' + this.turn + ', roundPoints=' + this.currentRoundPoints);
                     AudioManager.playStealAlert();
                 } else {
@@ -1037,6 +1054,7 @@ function gameBoard() {
                     const allRevealed = data.answers && data.answers.every(a => a.revealed);
                     if (allRevealed && this.turn !== 'FINISHED') {
                         console.log('[revealAnswer] Todas las respuestas reveladas, terminando ronda automáticamente...');
+                        this.stopTimer();
                         setTimeout(() => this.endRound(), 1200);
                     }
                 } else {
@@ -1067,6 +1085,7 @@ function gameBoard() {
                     this.lastResult = { correct: false, message: '¡Error! ' + errors + '/3' };
                     console.log('[incrementError] Error registrado: t1Errors=' + game.team1Errors + ', t2Errors=' + game.team2Errors + ', roundStatus=' + game.currentRoundStatus);
                     if (game.currentRoundStatus === 'STEAL_ATTEMPT') {
+                        this.stopTimer();
                         const allRevealed = this.currentQuestion?.answers && this.currentQuestion.answers.every(a => a.revealed);
                         if (allRevealed) {
                             console.log('[incrementError] Todas las respuestas reveladas, terminando ronda automáticamente...');
@@ -1237,6 +1256,15 @@ function gameBoard() {
                 && this.captainTeam1 !== null && this.captainTeam2 !== null;
         },
 
+        async startGame() {
+            this.loading = true;
+            try {
+                await this.startRound();
+            } finally {
+                this.loading = false;
+            }
+        },
+
         async submitFaceOff() {
             if (!this.faceOffPlayer1 || !this.faceOffPlayer2) return;
             this.loading = true;
@@ -1327,29 +1355,120 @@ function gameBoard() {
             this.loading = false;
         },
 
-        startFastMoney() {
+        async startFastMoney() {
             if (!this.fastMoneyPlayer1Id || !this.fastMoneyPlayer2Id) return;
+            if (this.fastMoneyPlayer1Id === this.fastMoneyPlayer2Id) return;
+            this.loading = true;
             this.fastMoneyPhase = 'player1';
             this.fastMoneyAnswers = ['','','','',''];
             this.fastMoneyPlayer2Answers = ['','','','',''];
             this.fastMoneyPlayer1Results = null;
             this.fastMoneyPlayer2Results = null;
             this.fastMoneyTotal = 0;
-            AudioManager.playFastMoneyStart();
+            try {
+                const res = await fetch('/api/games/' + this.gameId + '/fast-money/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player1Id: Number(this.fastMoneyPlayer1Id), player2Id: Number(this.fastMoneyPlayer2Id) })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    this.fastMoneyQuestions = data.questions || [];
+                    this.status = 'FAST_MONEY';
+                    AudioManager.playFastMoneyStart();
+                    this.startFastMoneyTimer(1);
+                }
+            } catch (e) {
+                console.error('[startFastMoney] Error:', e);
+            }
+            this.loading = false;
         },
 
-        submitFastMoneyPlayer1() {
-            this.fastMoneyPlayer1Results = this.fastMoneyAnswers.map((a, i) => ({ answer: a, questionIndex: i }));
-            this.fastMoneyPhase = 'player2';
-            AudioManager.playFastMoneyDing();
+        async submitFastMoneyPlayer1() {
+            this.loading = true;
+            try {
+                const res = await fetch('/api/games/' + this.gameId + '/fast-money/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ participantId: Number(this.fastMoneyPlayer1Id), answers: this.fastMoneyAnswers.filter(a => a.trim()) })
+                });
+                if (res.ok) {
+                    this.stopFastMoneyTimer();
+                    this.fastMoneyPhase = 'player2';
+                    AudioManager.playFastMoneyDing();
+                    this.startFastMoneyTimer(2);
+                }
+            } catch (e) {
+                console.error('[submitFastMoneyPlayer1] Error:', e);
+            }
+            this.loading = false;
         },
 
-        submitFastMoneyPlayer2() {
-            this.fastMoneyPlayer2Results = this.fastMoneyPlayer2Answers.map((a, i) => ({ answer: a, questionIndex: i }));
-            this.fastMoneyPhase = 'results';
-            this.fastMoneyTotal = Math.floor(Math.random() * 80) + 120;
-            this.fastMoneyWon = this.fastMoneyTotal >= 200;
-            AudioManager.playFastMoneyEnd();
+        async submitFastMoneyPlayer2() {
+            this.loading = true;
+            try {
+                const res = await fetch('/api/games/' + this.gameId + '/fast-money/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ participantId: Number(this.fastMoneyPlayer2Id), answers: this.fastMoneyPlayer2Answers.filter(a => a.trim()) })
+                });
+                if (res.ok) {
+                    this.stopFastMoneyTimer();
+                    const statusRes = await fetch('/api/games/' + this.gameId + '/fast-money/status');
+                    if (statusRes.ok) {
+                        const statusData = await statusRes.json();
+                        this.fastMoneyPlayer1Results = statusData.player1Answers || [];
+                        this.fastMoneyPlayer2Results = statusData.player2Answers || [];
+                        this.fastMoneyTotal = statusData.combinedTotal || 0;
+                        this.fastMoneyWon = statusData.wonBonus || false;
+                        this.fastMoneyPlayer1TotalPoints = statusData.player1TotalPoints || 0;
+                        this.fastMoneyPlayer2TotalPoints = statusData.player2TotalPoints || 0;
+                    }
+                    this.fastMoneyPhase = 'results';
+                    AudioManager.playFastMoneyEnd();
+                }
+            } catch (e) {
+                console.error('[submitFastMoneyPlayer2] Error:', e);
+            }
+            this.loading = false;
+        },
+
+        startFastMoneyTimer(player) {
+            this.stopFastMoneyTimer();
+            if (player === 1) {
+                this.fastMoneyPlayer1Time = 15;
+                this.fastMoneyTimerInterval = setInterval(() => {
+                    this.fastMoneyPlayer1Time--;
+                    if (this.fastMoneyPlayer1Time <= 5 && this.fastMoneyPlayer1Time > 0) {
+                        AudioManager.playTimerWarning();
+                    }
+                    if (this.fastMoneyPlayer1Time <= 0) {
+                        this.stopFastMoneyTimer();
+                        AudioManager.playTimerEnd();
+                        this.submitFastMoneyPlayer1();
+                    }
+                }, 1000);
+            } else {
+                this.fastMoneyPlayer2Time = 20;
+                this.fastMoneyTimerInterval = setInterval(() => {
+                    this.fastMoneyPlayer2Time--;
+                    if (this.fastMoneyPlayer2Time <= 5 && this.fastMoneyPlayer2Time > 0) {
+                        AudioManager.playTimerWarning();
+                    }
+                    if (this.fastMoneyPlayer2Time <= 0) {
+                        this.stopFastMoneyTimer();
+                        AudioManager.playTimerEnd();
+                        this.submitFastMoneyPlayer2();
+                    }
+                }, 1000);
+            }
+        },
+
+        stopFastMoneyTimer() {
+            if (this.fastMoneyTimerInterval) {
+                clearInterval(this.fastMoneyTimerInterval);
+                this.fastMoneyTimerInterval = null;
+            }
         }
     }
 }
